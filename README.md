@@ -205,7 +205,7 @@ Build & deploy (from the `fable/` directory):
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
-  --substitutions _REGION=europe-west1,_REPO=stash,_SERVICE=stash,_AUTH_URL=https://<your-domain>
+  --substitutions _AR_HOSTNAME=europe-west1-docker.pkg.dev,_AR_REPOSITORY=stash,_SERVICE_NAME=stash,_AUTH_URL=https://<your-domain>
 ```
 
 Connect the service to Cloud SQL (once, after the first deploy — Cloud Build's
