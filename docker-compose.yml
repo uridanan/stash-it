@@ -1,0 +1,60 @@
+# Stash — local stack: PostgreSQL + the Next.js app.
+#
+#   docker compose up --build
+#   open http://localhost:3000  (AUTH_DEV_LOGIN is on — use the dev login)
+#
+# Values below are throwaway local-dev credentials only. Production secrets
+# live in GCP Secret Manager (see cloudbuild.yaml + README).
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: stash
+      POSTGRES_PASSWORD: stash
+      POSTGRES_DB: stash
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      # Host access for debugging only (5435 to avoid clashing with other
+      # local Postgres instances); the web service reaches db over the
+      # compose network on 5432 regardless.
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stash -d stash"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: ./web
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    # Mail credentials for Send to Kindle, kept out of this file (and out of
+    # the repository) on purpose. Generated from email.env; both are
+    # gitignored. Missing file = feature simply not offered, so a checkout
+    # without it still runs.
+    env_file:
+      - path: ./smtp.env
+        required: false
+    environment:
+      DATABASE_URL: "postgresql://stash:stash@db:5432/stash"
+      # Local-only session secret; generate a real one for anything shared.
+      AUTH_SECRET: "local-dev-secret-do-not-use-in-prod"
+      # Enables the dev credentials login (never set in production).
+      AUTH_DEV_LOGIN: "true"
+      AUTH_TRUST_HOST: "true"
+    healthcheck:
+      # 127.0.0.1 (not localhost): the server listens on IPv4 only and
+      # busybox wget resolves localhost to ::1 first.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+volumes:
+  db-data:

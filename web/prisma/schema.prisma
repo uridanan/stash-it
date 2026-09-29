@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ArticleState {
+  UNREAD
+  ARCHIVED
+}
+
+/** The three independent axes of filling in an imported library. */
+enum JobType {
+  FETCH_CONTENT
+  CLASSIFY
+  SUMMARIZE
+}
+
+enum JobStatus {
+  RUNNING
+  DONE
+  CANCELLED
+  FAILED
+}
+
+/** Whether a tag was applied by the user or derived automatically. */
+enum TagSource {
+  MANUAL
+  AUTO
+}
+
+/** What kind of signal produced a tag. Drives grouping and styling in the UI. */
+enum TagKind {
+  TOPIC
+  LENGTH
+  LANGUAGE
+  FORMAT
+  SHOPPING
+  TTS
+  CUSTOM
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  createdAt DateTime @default(now())
+
+  // AI summary settings (see src/lib/summarize.ts)
+  aiSummariesEnabled Boolean @default(false)
+  aiModel            String  @default("gemini-3.1-pro-preview")
+  aiApiKey           String?
+  aiPrompt           String? @db.Text
+  summaryView        String  @default("card") // "card" | "tabs"
+
+  /** Extra topic names offered to the classifier beyond the built-in taxonomy. */
+  customTopics String[] @default([])
+
+  /** Mark an article read once narration reaches the end of it. */
+  markReadOnListen Boolean @default(false)
+
+  /**
+   * Where "Send to Kindle" delivers to (@kindle.com).
+   *
+   * The mail transport itself is environment configuration, not user data —
+   * see src/lib/mail.ts. Only the destination belongs to the user.
+   */
+  kindleEmail String?
+
+  articles Article[]
+  tokens   ApiToken[]
+  tags     Tag[]
+  jobs     BackgroundJob[]
+}
+
+model Article {
+  id               String       @id @default(cuid())
+  userId           String
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url              String
+  title            String
+  siteName         String?
+  author           String?
+  excerpt          String?
+  content          String       @db.Text
+  wordCount        Int          @default(0)
+  readingMinutes   Int          @default(0)
+  leadImageUrl     String?
+  state            ArticleState @default(UNREAD)
+  starred          Boolean      @default(false)
+  extractionFailed Boolean      @default(false)
+  summary          String?      @db.Text
+  savedAt          DateTime     @default(now())
+  readAt           DateTime?
+
+  /** When the source says it was published. Null for most pages — sorts last. */
+  publishedAt DateTime?
+  /** BCP-47 language from the page, e.g. "he", "fr-CA". */
+  lang        String?
+  /** Set once AI topic classification has run, so it never runs twice. */
+  classifiedAt DateTime?
+
+  /**
+   * Signals read off the live page during extraction, which drive the Shopping
+   * and Visual content tags.
+   *
+   * Stored rather than recomputed because they cannot be recovered from the
+   * saved article: the sanitizer strips embeds, and the JSON-LD and og: tags
+   * they come from are never part of the body. Without them a restore that
+   * re-derives its collections would quietly lose both tags.
+   */
+  isProduct        Boolean @default(false)
+  hasEmbeddedMedia Boolean @default(false)
+
+  tags ArticleTag[]
+
+  @@unique([userId, url])
+  @@index([userId, state, savedAt(sort: Desc)])
+  @@index([userId, state, publishedAt(sort: Desc)])
+}
+
+/** A collection. Doubles as a playlist: its articles carry an explicit order. */
+model Tag {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  slug      String
+  kind      TagKind  @default(CUSTOM)
+  createdAt DateTime @default(now())
+
+  articles ArticleTag[]
+
+  @@unique([userId, slug])
+  @@index([userId, kind])
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  /**
+   * Order within this tag's playlist. Float so a drag writes the midpoint of
+   * its new neighbours (2.0, 3.0 -> 2.5) and only one row is updated.
+   */
+  position  Float
+  source    TagSource @default(MANUAL)
+  createdAt DateTime  @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([tagId, position])
+}
+
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
+}
+
+/**
+ * A long-running fill-in job.
+ *
+ * Only the counters and lifecycle live here. What still needs doing is derived
+ * from the articles themselves — empty content, null classifiedAt, null summary
+ * — so a job resumes correctly after a restart instead of depending on
+ * per-item queue rows that could go stale.
+ */
+model BackgroundJob {
+  id     String    @id @default(cuid())
+  userId String
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   JobType
+  status JobStatus @default(RUNNING)
+
+  total  Int @default(0)
+  done   Int @default(0)
+  failed Int @default(0)
+
+  /**
+   * Re-do work that is already done — a forced refetch rather than filling
+   * gaps. "What is left" cannot be derived for these, because a refetched
+   * article still has content, so they walk the library by cursor instead.
+   */
+  force  Boolean @default(false)
+  cursor String?
+
+  /** Set by the user; the runner checks it between items and stops. */
+  cancelRequested Boolean @default(false)
+  /** Last error, when status is FAILED. */
+  error String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([userId, status])
+}

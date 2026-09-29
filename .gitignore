@@ -1,36 +1,17 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Personal exports used for import testing. Real reading history —
+# keep it out of a shared repository.
+data/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# Mail credentials for Send to Kindle. This is a shared repository — the
+# password for a real mailbox has no business in it. email.env is the file
+# handed over by hand; smtp.env is the SMTP_*-named copy docker-compose reads.
+email.env
+smtp.env
+*.local.env
 
-# testing
-/coverage
+# Per-machine compose tweaks (port remaps and the like). Local only.
+docker-compose.override.yml
 
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
+# macOS system files
 .DS_Store
-*.pem
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
-.env
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts

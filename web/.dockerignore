@@ -1,0 +1,38 @@
+# Dependencies & build output (rebuilt inside the image)
+node_modules
+.next
+out
+
+# Environment files — never bake env/secrets into the image
+.env
+.env.*
+!.env.example
+
+# Version control / editor
+.git
+.gitignore
+.vscode
+.idea
+*.swp
+
+# Tests & tooling artifacts
+playwright-report
+test-results
+blob-report
+coverage
+e2e/.auth
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+*.log
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+
+# Docs
+README.md

@@ -1,0 +1,82 @@
+# Stash — Google Cloud Build pipeline: build -> push -> deploy to Cloud Run.
+#
+# Usage (from the repo root, after the one-time GCP setup in README.md):
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions _REGION=europe-west1,_REPO=stash,_SERVICE=stash,_AUTH_URL=https://stash.example.com
+#
+# Secrets are NOT passed here. The Cloud Run service reads them from
+# Secret Manager at deploy time via --set-secrets (company policy: secrets
+# live in Secret Manager / env vars, never in code or build configs).
+#
+# Required Secret Manager secrets (create before first deploy):
+#   stash-database-url     — postgres connection string (Cloud SQL socket form)
+#   stash-auth-secret      — Auth.js secret (openssl rand -base64 32)
+#   stash-google-id        — Google OAuth client ID
+#   stash-google-secret    — Google OAuth client secret
+
+steps:
+  # 1. Build the app image from web/ (multi-stage Dockerfile).
+  #    Tag with both the commit SHA (immutable) and :latest (convenience).
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$COMMIT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
+      - web/
+
+  # 2. Push the SHA tag to Artifact Registry.
+  - id: push-sha
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$COMMIT_SHA
+
+  # 3. Push the :latest tag.
+  - id: push-latest
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
+
+  # 4. Deploy to Cloud Run.
+  #    - --allow-unauthenticated: the app does its own auth (Google Sign-In).
+  #    - --set-secrets: mounts Secret Manager values as env vars.
+  #    - --set-env-vars: non-secret config only.
+  #    Note: if using Cloud SQL, also add
+  #      --add-cloudsql-instances $PROJECT_ID:${_REGION}:<instance>
+  #    and use the unix-socket DATABASE_URL form (see README).
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$COMMIT_SHA
+      - --region
+      - ${_REGION}
+      - --allow-unauthenticated
+      - --set-secrets
+      - DATABASE_URL=stash-database-url:latest,AUTH_SECRET=stash-auth-secret:latest,AUTH_GOOGLE_ID=stash-google-id:latest,AUTH_GOOGLE_SECRET=stash-google-secret:latest
+      - --set-env-vars
+      - AUTH_TRUST_HOST=true,AUTH_URL=${_AUTH_URL}
+
+# Placeholder defaults — override per-project with --substitutions.
+substitutions:
+  _REGION: europe-west1     # Artifact Registry + Cloud Run region
+  _REPO: stash              # Artifact Registry repository name
+  _SERVICE: stash           # Cloud Run service (and image) name
+  _AUTH_URL: https://stash.example.com  # public URL of the deployed service
+
+# Images recorded in the build results (also ensures they are pushed).
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$COMMIT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
