@@ -29,7 +29,7 @@ services:
   web:
     build: ./web
     ports:
-      - "8000:8000"
+      - "8000:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -47,10 +47,11 @@ services:
       # Enables the dev credentials login (never set in production).
       AUTH_DEV_LOGIN: "true"
       AUTH_TRUST_HOST: "true"
+      PORT: "8080"
     healthcheck:
       # 127.0.0.1 (not localhost): the server listens on IPv4 only and
       # busybox wget resolves localhost to ::1 first.
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12

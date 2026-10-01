@@ -73,7 +73,8 @@ RUN apk add --no-cache libc6-compat openssl
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
-ENV PORT=8000
+ARG PORT=8080
+ENV PORT=${PORT}
 
 # Standalone output: server.js + a pruned node_modules live at the app root
 # (no monorepo, so there is no nested web/ directory inside standalone/).
@@ -88,9 +89,11 @@ COPY --from=build --chown=node:node /app/prisma ./prisma
 # migrations at container start. Kept outside ./node_modules so it can't
 # shadow anything the standalone server traced.
 COPY --from=migrate-cli --chown=node:node /cli/node_modules ./migrate-cli/node_modules
+COPY --chown=node:node docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
 
 USER node
-EXPOSE 8000
+EXPOSE ${PORT}
 
-# Apply pending migrations, then hand PID 1 to the Next.js server.
-ENTRYPOINT ["sh", "-c", "./migrate-cli/node_modules/.bin/prisma migrate deploy --schema ./prisma/schema.prisma && exec node server.js"]
+# Apply pending migrations, then hand PID 1 to the Next.js server via entrypoint script.
+ENTRYPOINT ["./docker-entrypoint.sh"]
