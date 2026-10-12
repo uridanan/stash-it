@@ -8,35 +8,43 @@ purpose: >
 audience: whoever works on this next, human or assistant
 scope: >
   Decisions and their reasons, hard-won gotchas, current state, verification
-  commands, open items. Deliberately NOT a feature list or an architecture
-  tour — README.md covers what the app does, PLAN.md covers the original
-  design, PROGRESS.md tracks the original build tasks.
+  commands, open items. README.md is the tour of what the app does, with the
+  exceptions called out below. PLAN.md and PROGRESS.md are the original
+  July 2026 build and are stale.
 read_also:
-  - README.md      # what the app is and how to run it
-  - PLAN.md        # original design decisions (2026-07-06)
-  - PROGRESS.md    # original build task list
+  - README.md      # what the app is and how to run it; compose URL and GCP section lag the code
+  - PLAN.md        # historical: original design (2026-07-06), not the current spec
+  - PROGRESS.md    # historical: original build task list; every item is done
 maintenance: >
   Update when a decision is made that future work could reasonably get wrong,
   or when a bug is found whose cause was non-obvious. Do not log routine
   changes — git history already has those.
-updated: 2026-08-31
-head_commit: c2cee83
+updated: 2026-10-12
+head_commit: 26f81b8
 ---
 
 # Working context
 
 ## Where things are
 
-Everything lives under `ai-reader/fable/`. The app is `web/` (Next.js 15, App
-Router, TypeScript, Tailwind, PostgreSQL + Prisma). `extension/` is the Chrome
-extension. The git repo root is two levels up at `D:/Github/uri-playground`,
-which is a shared playground — **other people commit unrelated work to
-`level-funnel/` constantly**, so expect to rebase before nearly every push.
-Nothing outside `ai-reader/fable/` is ours.
+This repository is the whole project. The git root is the Stash app
+(`https://github.com/uridanan/stash-it.git`, branch `main`). There is no
+parent playground repo.
+
+```
+stash-it/
+  web/                # Next.js 15 app (App Router, TypeScript, Tailwind)
+  extension/          # Chrome MV3 extension, plain JS, no build step
+  docker-compose.yml  # local: postgres + web
+  cloudbuild.yaml     # Cloud Build → Artifact Registry → Cloud Run
+  README.md           # tour and run instructions; two sections lag the code
+  PLAN.md             # historical — original design, 2026-07-06
+  PROGRESS.md         # historical — original build tasks, all done
+  CONTEXT.md          # this file
+```
 
 `data/` holds a real Instapaper export used to build the importer. It is
-gitignored on purpose: it is thousands of genuine URLs and titles and has no
-business in a shared repo.
+gitignored on purpose: it is thousands of genuine URLs and titles.
 
 **Four things the app needs are deliberately not in the repository**, so a
 fresh clone runs but does less until they exist:
@@ -54,6 +62,87 @@ machine means copying them by hand over something private — and the *library*
 does not travel with them: it lives in the `db-data` docker volume, and the
 way across is the app's own backup, download on one side and restore on the
 other. That is what it is for.
+
+## PLAN.md and PROGRESS.md are historical
+
+Both files are the original build, written and finished on 2026-07-06.
+PROGRESS.md's resume rule — find the first task that is not `[x]` — no longer
+applies. Every task is done. They record what was decided that day: a save
+box, unread / archive / starred lists, a reader, a PWA share target, Google
+sign-in, API tokens, and a Chrome extension.
+
+The layout and deploy in those files are that day's plan. They describe a
+`fable/` directory, Compose on port 3000, Cloud Run in `europe-west1` under
+the service name `stash`, and Cloud SQL attached by a follow-up command after
+the first deploy. The running app is the section below, plus the decision
+notes. Do not implement from PLAN.md.
+
+README.md is still the right description of how a person uses the app. Two
+parts of it lag the code, and so does the header comment in
+`docker-compose.yml`:
+
+- Compose publishes the app at **http://localhost:8000**. The container
+  listens on **8080**. `npm run dev` (from `web/`) is still
+  http://localhost:3000. Playwright starts its own server on
+  http://localhost:3100 against a throwaway `stash_e2e` database.
+- `cloudbuild.yaml` deploys service `stash-it` in **me-west1**, image
+  repository `stash-it` on `me-west1-docker.pkg.dev`, port 8080, and attaches
+  Cloud SQL instance `stash-db` in the deploy step itself.
+
+`web/docker-entrypoint.sh` runs `prisma migrate deploy` and then
+`node server.js`. When the migration fails, the script logs a warning and
+starts the server anyway, so Cloud Run can pass its health check and the
+failure is visible in the logs. A failed migration is a started container.
+
+## What the app does beyond the original plan
+
+Still present from the first build: save from the web UI, the Android share
+target, the bookmarklet, and the Chrome extension; unread, archive, and
+starred lists; the reader; Google sign-in plus the dev-only credentials
+login; API tokens.
+
+Added since, and absent from PLAN.md:
+
+- **AI summaries.** English, "the news" plus the article's own stated
+  conclusions. Bring-your-own key (Gemini, Claude, or Grok), model and prompt
+  editable in Settings → AI summaries. Card layout or summary/article tabs.
+  Generation can run on save or on demand. Cost in the UI is tokens.
+- **Topic classification.** A separate job from summarization. The model may
+  only apply names from `web/src/lib/taxonomy.ts` plus the user's
+  `customTopics` (Settings → AI summaries), at most three per article.
+- **Automatic collections, with no model.** Derived at save from the article
+  itself: Quick read / Long read (1,200 words), a language tag, Visual
+  content, Shopping, and Won't narrate (failed extraction, or under 30 words
+  of prose). Whether this device has a voice for the language is decided at
+  playback, and is never stored as a tag.
+- **Collections are playlists.** Rename, merge, bulk "add to collection", and
+  export one collection. Dragging a row reorders it by writing the midpoint
+  of its new neighbours into `ArticleTag.position`, so one row changes.
+- **Listen.** Web Speech API behind `TtsEngine` (`web/src/lib/tts/engine.ts`).
+  The player reads `[data-listen]` containers in DOM order, so it narrates
+  whatever is on screen, highlights the active sentence, and offers
+  play/pause, stop, rewind, and speed. Voice and rate live in `localStorage`
+  (`stash:tts-voice`, `stash:tts-rate`) because the voice list is per device.
+  `User.markReadOnListen` is the one listening setting on the account. Rewind
+  is an estimate: the native engine's `exactSeek` is false. Screen-off
+  playback needs a future engine that can drive a real `<audio>` element.
+  The player calls the engine interface only.
+- **Instapaper CSV import** (Settings → Your data). The export has URLs and
+  metadata and no article text, so rows land as stubs and a fetch job fills
+  them in. Instapaper models Starred as a folder, so those rows are saved
+  starred and unread. Import still never overwrites an article already in
+  the library.
+- **Backups and one-way downloads.** Exact `.ndjson.gz`, a `.tar.gz` archive
+  of HTML files, and per-article or per-collection Markdown, PDF, and EPUB.
+- **Send to Kindle**, as an EPUB, when `SMTP_*` is set and the user has saved
+  a Kindle address.
+- **Background fill-in jobs** for fetch, classify, and summarize. Progress is
+  derived from the articles, so a job resumes after a restart. Summarizing
+  more than 200 articles asks for confirmation first.
+- **Desktop split view** on the list pages (list and reader side by side;
+  selection is `?article=`). **Sidebar** navigation, collapsed state in
+  `localStorage`. **Settings tabs** in the URL: AI summaries, Listening,
+  Kindle, Your data, Apps & tokens.
 
 ## Decisions that are easy to get wrong
 
@@ -321,8 +410,8 @@ Each of these cost real debugging time. They are all now covered by tests.
 Run from `web/`. All of these must be clean before a commit:
 
 ```
-npm run test:unit        # 298 tests, 18 files (vitest)
-npx playwright test      # 103 tests (needs: docker compose up -d db)
+npm run test:unit        # 260 tests, 18 files (vitest)
+npx playwright test      # 103 tests, 7 spec files (needs: docker compose up -d db)
 npx tsc --noEmit         # see known-noise below
 npm run lint
 npm run build
@@ -391,10 +480,11 @@ real library into the working app is the user's call, not an assistant's.
   500'd in the actual app. Each time the fix was to run an experiment instead
   of reasoning from the code. Prefer measuring.
 - **Verify in the container, not just in dev.** The app the user looks at is
-  `localhost:3000`, which is the docker image, not the dev server. A change
-  that is only on disk is not a change they can see, and the PDF bug above was
-  a 500 in the image while every dev-server test was green. Rebuild, then
-  exercise the real endpoint.
+  the Compose image at http://localhost:8000 (the container listens on 8080).
+  The dev server is http://localhost:3000. A change that is only on disk is
+  not a change they can see, and the PDF bug above was a 500 in the image
+  while every dev-server test was green. Rebuild with
+  `docker compose up --build -d`, then exercise the real endpoint.
 - **Credentials arrive as local files and stay there.** Never commit them,
   never print them back, and do not attach them to a conversation — package
   them on disk and hand over a path instead.
@@ -404,7 +494,6 @@ real library into the working app is the user's call, not an assistant's.
   shipped them.
 - Report honestly: if something is unverified, say so. If a gate fails, show
   it.
-- Commit messages explain *why*, not what. Rebase onto the unrelated
-  `level-funnel/` work rather than merging.
-- Docker is rebuilt after each merged change so the running app matches
-  `master`: `docker compose up --build -d`.
+- Commit messages explain *why*, not what. The branch is `main`. After a
+  change lands, rebuild so the container matches it:
+  `docker compose up --build -d`.
