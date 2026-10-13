@@ -263,7 +263,14 @@ export async function deleteArticle(id: string, userId: string): Promise<boolean
 }
 
 /** The saved article, plus whether it was newly created (vs. a re-save). */
-export type SavedArticle = ArticleRow & { created: boolean };
+export type SavedArticle = ArticleRow & {
+  created: boolean;
+  /**
+   * The row exists, but its text is still being fetched. Share-target saves
+   * use this so the confirmation can paint before extraction finishes.
+   */
+  pendingExtraction: boolean;
+};
 
 function isUniqueConstraintError(err: unknown): boolean {
   return (
@@ -289,17 +296,30 @@ async function resaveExisting(
   });
 }
 
+export interface SaveArticleOptions {
+  /**
+   * Insert a stub and return immediately. The caller fetches the article text
+   * afterwards (share-target saves do this after the response is sent).
+   */
+  deferExtraction?: boolean;
+}
+
 /**
  * Save a URL for a user: extract + create. If the URL was already saved,
  * un-archive it and bump savedAt instead (no re-extraction; created=false).
  * On extraction failure, save a stub with extractionFailed=true and
  * title = hostname.
  *
+ * `deferExtraction` inserts that stub and returns without fetching the page,
+ * so a share-target confirmation can render immediately. The caller is then
+ * responsible for filling the text in.
+ *
  * Throws ExtractionError("invalid-url") if the URL is not http(s).
  */
 export async function saveArticleFromUrl(
   userId: string,
   url: string,
+  options?: SaveArticleOptions,
 ): Promise<SavedArticle> {
   let parsed: URL;
   try {
@@ -313,7 +333,27 @@ export async function saveArticleFromUrl(
   const normalizedUrl = parsed.toString();
 
   const resaved = await resaveExisting(userId, normalizedUrl);
-  if (resaved) return { ...resaved, created: false };
+  if (resaved) return { ...resaved, created: false, pendingExtraction: false };
+
+  if (options?.deferExtraction) {
+    try {
+      const row = await prisma.article.create({
+        data: {
+          userId,
+          url: normalizedUrl,
+          title: parsed.hostname,
+          content: "",
+        },
+      });
+      return { ...row, created: true, pendingExtraction: true };
+    } catch (err) {
+      if (isUniqueConstraintError(err)) {
+        const raced = await resaveExisting(userId, normalizedUrl);
+        if (raced) return { ...raced, created: false, pendingExtraction: false };
+      }
+      throw err;
+    }
+  }
 
   let data: {
     title: string;
@@ -379,12 +419,12 @@ export async function saveArticleFromUrl(
 
     // Fire-and-forget: don't hold up the save on the AI provider.
     void runAiTasksOnSave(row.id, userId);
-    return { ...row, created: true };
+    return { ...row, created: true, pendingExtraction: false };
   } catch (err) {
     // Lost a race with a concurrent save of the same URL: fall back to re-save.
     if (isUniqueConstraintError(err)) {
       const raced = await resaveExisting(userId, normalizedUrl);
-      if (raced) return { ...raced, created: false };
+      if (raced) return { ...raced, created: false, pendingExtraction: false };
     }
     throw err;
   }

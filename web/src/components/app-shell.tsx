@@ -67,7 +67,7 @@ export async function AppShell({
         signOutAction={signOutAction}
       />
       <main
-        className={`min-w-0 flex-1 pt-12 md:pt-0 lg:min-h-0 ${
+        className={`min-w-0 flex-1 pt-16 md:pt-0 lg:min-h-0 ${
           wide
             ? "lg:flex lg:h-full lg:flex-col lg:overflow-hidden"
             : "lg:h-full lg:overflow-y-auto"

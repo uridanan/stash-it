@@ -144,7 +144,7 @@ export function CollectionOrder({
                 : "Show only what is still unread"
             }
             data-testid="unread-filter"
-            className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+            className={`min-h-11 rounded-full border px-4 py-2 text-base transition-colors ${
               unreadOnly
                 ? "border-violet-300 bg-violet-50 text-violet-700"
                 : "border-slate-200 text-slate-500 hover:bg-slate-50"
@@ -170,7 +170,7 @@ export function CollectionOrder({
                 : "No text-to-speech voices are installed on this device"
             }
             data-testid="listen-all"
-            className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-60"
+            className="inline-flex min-h-12 items-center rounded-lg border border-violet-300 bg-violet-50 px-4 py-3 text-base font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-60"
           >
             🎧 Listen all
           </button>
@@ -302,7 +302,7 @@ function SortableRow({
         title="Send to top"
         aria-label={`Send ${item.title} to top`}
         data-testid="send-to-top"
-        className="rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+        className="min-h-12 rounded-lg px-3 py-2 text-base text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
       >
         ↑ Top
       </button>

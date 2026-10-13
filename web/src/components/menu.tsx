@@ -69,7 +69,7 @@ export function Menu({
           id={panelId}
           role="menu"
           data-testid={testId ? `${testId}-panel` : undefined}
-          className="absolute right-0 top-full z-20 mt-1 min-w-44 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          className="absolute right-0 top-full z-20 mt-1 min-w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
         >
           {children(() => setOpen(false))}
         </div>
@@ -79,7 +79,7 @@ export function Menu({
 }
 
 const ITEM_CLASS =
-  "flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent";
+  "flex min-h-12 w-full items-center gap-3 px-4 py-3 text-left text-base text-slate-800 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent";
 
 /** A menu row that runs something. */
 export function MenuItem({

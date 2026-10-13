@@ -107,7 +107,7 @@ export function SummaryTabs({
       onClick={() => setTab(value)}
       aria-selected={tab === value}
       role="tab"
-      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+      className={`min-h-12 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
         tab === value
           ? "bg-violet-600 text-white"
           : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -164,7 +164,7 @@ export function GenerateSummaryButton({ articleId }: { articleId: string }) {
         type="button"
         onClick={generate}
         disabled={busy}
-        className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-60"
+        className="inline-flex min-h-12 items-center rounded-lg border border-violet-300 bg-violet-50 px-4 py-3 text-base font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-60"
       >
         {busy ? "Summarizing…" : "✨ Summarize"}
       </button>

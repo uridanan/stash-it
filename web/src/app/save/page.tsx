@@ -1,7 +1,11 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { SaveConfirmation } from "@/components/save-confirmation";
+import { runAiTasksOnSave } from "@/lib/ai-tasks";
 import { saveArticleFromUrl } from "@/lib/articles";
+import { fillStub } from "@/lib/backup";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +43,9 @@ function Card({ children }: { children: React.ReactNode }) {
   );
 }
 
+const homeLinkClass =
+  "inline-flex min-h-12 items-center justify-center rounded-lg bg-violet-600 px-6 py-3 text-base font-medium text-white hover:bg-violet-700";
+
 type SearchParams = {
   url?: string | string[];
   text?: string | string[];
@@ -69,89 +76,72 @@ export default async function SavePage({
   if (!sharedUrl) {
     return (
       <Card>
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-2xl">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-2xl">
           🔍
         </div>
-        <h1 className="mb-2 text-lg font-semibold text-slate-900">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900">
           No link found
         </h1>
-        <p className="mb-6 text-sm text-slate-500">
+        <p className="mb-6 text-base text-slate-500">
           We couldn&rsquo;t find a URL in what was shared. Try sharing the page
           again, or add it manually from your list.
         </p>
-        <Link
-          href="/"
-          className="inline-block rounded-lg bg-violet-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-violet-700"
-        >
+        <Link href="/" className={homeLinkClass}>
           Go home
         </Link>
       </Card>
     );
   }
 
+  const userId = session.user.id;
   let article: Awaited<ReturnType<typeof saveArticleFromUrl>>;
   try {
-    article = await saveArticleFromUrl(session.user.id, sharedUrl);
+    // The row is enough to confirm the save. Fetching the page can take
+    // several seconds and used to leave this screen blank the whole time.
+    article = await saveArticleFromUrl(userId, sharedUrl, {
+      deferExtraction: true,
+    });
   } catch {
     return (
       <Card>
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-2xl">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl">
           ⚠️
         </div>
-        <h1 className="mb-2 text-lg font-semibold text-slate-900">
+        <h1 className="mb-2 text-xl font-semibold text-slate-900">
           Couldn&rsquo;t save that
         </h1>
-        <p className="mb-1 text-sm text-slate-500">
+        <p className="mb-1 text-base text-slate-500">
           Something went wrong while saving:
         </p>
-        <p className="mb-6 break-all text-sm text-slate-400">{sharedUrl}</p>
-        <Link
-          href="/"
-          className="inline-block rounded-lg bg-violet-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-violet-700"
-        >
+        <p className="mb-6 break-all text-base text-slate-400">{sharedUrl}</p>
+        <Link href="/" className={homeLinkClass}>
           Go home
         </Link>
       </Card>
     );
   }
 
+  if (article.pendingExtraction) {
+    const articleId = article.id;
+    after(() => {
+      void fillStub(articleId, userId)
+        .then((result) => {
+          if (result.ok) return runAiTasksOnSave(articleId, userId);
+        })
+        .catch(() => {
+          console.error(`Background extraction failed for article ${articleId}`);
+        });
+    });
+  }
+
   return (
-    <>
-      {/* Auto-return to the list after a short confirmation pause. */}
-      <meta httpEquiv="refresh" content="2.5;url=/" />
-      <Card>
-        <div data-testid="save-confirmation">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-2xl">
-            ✓
-          </div>
-          <h1 className="mb-2 text-lg font-semibold text-slate-900">Saved</h1>
-          <p className="mb-1 text-base font-medium text-slate-700">
-            {article.title}
-          </p>
-          {article.extractionFailed && (
-            <p className="mb-2 text-xs text-violet-700">
-              We saved the link, but couldn&rsquo;t extract the article text.
-            </p>
-          )}
-          <p className="mb-6 text-xs text-slate-400">
-            Returning to your list in a moment&hellip;
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <Link
-              href={`/article/${article.id}`}
-              className="rounded-lg bg-violet-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-violet-700"
-            >
-              Read now
-            </Link>
-            <Link
-              href="/"
-              className="rounded-lg border border-slate-300 px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Done
-            </Link>
-          </div>
-        </div>
-      </Card>
-    </>
+    <Card>
+      <SaveConfirmation
+        articleId={article.id}
+        title={article.title}
+        extractionFailed={article.extractionFailed}
+        pendingExtraction={article.pendingExtraction}
+      />
+    </Card>
   );
 }

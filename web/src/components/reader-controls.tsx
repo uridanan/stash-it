@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useListen } from "@/components/listen/listen-provider";
+import { useWakeLock } from "@/components/use-wake-lock";
 import { ArticleActions } from "@/components/article-actions";
 import { DownloadMenu } from "@/components/download-menu";
 import { useReaderLayout } from "@/components/reader-layout";
@@ -52,6 +53,8 @@ export function ReaderControls({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const listen = useListen();
+  // Reading keeps the screen on even when nothing is being spoken.
+  useWakeLock(true);
   // Null on the standalone /article page, where there is no list beside the
   // reader and so nothing for the full-width button to hide.
   const layout = useReaderLayout();
@@ -139,12 +142,12 @@ export function ReaderControls({
   }
 
   const controlButton =
-    "flex items-center justify-center rounded-md p-1.5 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent";
+    "flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent";
 
   return (
     <div>
-      <div className="sticky top-12 z-10 -mx-4 border-b border-slate-200 bg-paper/95 px-4 py-2 backdrop-blur-sm md:top-0">
-        <div className="flex items-center gap-1">
+      <div className="sticky top-16 z-10 -mx-4 border-b border-slate-200 bg-paper/95 px-2 py-2 backdrop-blur-sm md:top-0">
+        <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
             onClick={exitReader}
@@ -195,7 +198,7 @@ export function ReaderControls({
             <TextLargerIcon />
           </button>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">
             <button
               type="button"
               disabled={busy}

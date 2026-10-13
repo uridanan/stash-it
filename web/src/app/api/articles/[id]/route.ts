@@ -24,6 +24,17 @@ export async function GET(req: Request, ctx: RouteContext) {
   const { id } = await ctx.params;
   const article = await getArticle(id, user.userId);
   if (!article) return jsonError("Article not found", 404);
+
+  // Share confirmation and the reader poll this while text is still fetching.
+  // The full article body is the expensive part, so leave it out.
+  if (new URL(req.url).searchParams.get("view") === "status") {
+    return NextResponse.json({
+      title: article.title,
+      extractionFailed: article.extractionFailed,
+      hasContent: article.content.length > 0,
+    });
+  }
+
   return NextResponse.json({ article: toArticleDTO(article) });
 }
 

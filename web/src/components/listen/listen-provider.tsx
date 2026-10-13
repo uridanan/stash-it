@@ -24,6 +24,7 @@ import {
   unwrapSentences,
   wrapSentences,
 } from "@/components/listen/wrap-sentences";
+import { useWakeLock } from "@/components/use-wake-lock";
 
 /**
  * Owns listen-mode state for the whole app.
@@ -156,6 +157,10 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
   const [autoStart, setAutoStart] = useState(false);
   /** Account setting: mark an article read once narration reaches its end. */
   const markReadOnListenRef = useRef(false);
+
+  // Pause still has the article in the ear; don't let the screen sleep until
+  // the session actually stops.
+  useWakeLock(status !== "idle");
 
   // Engine, stored preferences and voices resolve up front: iOS requires the
   // first speak() to happen inside the click handler, so start() never awaits.

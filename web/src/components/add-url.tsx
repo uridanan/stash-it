@@ -49,13 +49,13 @@ export function AddUrl() {
           placeholder="https://example.com/article-to-read-later"
           aria-label="Article URL"
           data-testid="add-url-input"
-          className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-violet-600"
+          className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-base outline-none transition-colors focus:border-violet-600"
         />
         <button
           type="submit"
           disabled={saving}
           data-testid="add-url-submit"
-          className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
+          className="flex min-h-12 items-center gap-2 rounded-lg bg-violet-600 px-5 py-3 text-base font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
         >
           {saving && (
             <span

@@ -75,15 +75,20 @@ export function SelectCheckbox({ articleId }: { articleId: string }) {
     // hid the real input behind a styled box and a drawn tick, which left the
     // only clickable thing a 1px screen-reader-only input with decoration on
     // top of it — pointer clicks landed on the decoration, not the control.
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={() => selection.toggle(articleId)}
+    <label
+      className="flex h-12 w-12 shrink-0 items-center justify-center"
       onClick={(event) => event.stopPropagation()}
-      aria-label={checked ? "Deselect article" : "Select article"}
-      data-testid={`select-article-${articleId}`}
-      className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-violet-600"
-    />
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={() => selection.toggle(articleId)}
+        onClick={(event) => event.stopPropagation()}
+        aria-label={checked ? "Deselect article" : "Select article"}
+        data-testid={`select-article-${articleId}`}
+        className="h-6 w-6 cursor-pointer accent-violet-600"
+      />
+    </label>
   );
 }
 
@@ -216,20 +221,20 @@ export function SelectionBar() {
               maxLength={60}
               aria-label="New collection name"
               data-testid="selection-new-collection"
-              className="rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-violet-600"
+              className="min-h-12 rounded-lg border border-slate-200 px-3 py-2 text-base outline-none focus:border-violet-600"
             />
             <button
               type="submit"
               disabled={busy || !draft.trim()}
               data-testid="selection-new-collection-save"
-              className="rounded-md bg-violet-600 px-3 py-1 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
+              className="min-h-12 rounded-lg bg-violet-600 px-4 py-2 text-base font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
             >
               Add
             </button>
             <button
               type="button"
               onClick={() => setCreating(false)}
-              className="rounded-md px-2 py-1 text-sm text-violet-800 transition-colors hover:bg-violet-100"
+              className="min-h-12 rounded-lg px-4 py-2 text-base text-violet-800 transition-colors hover:bg-violet-100"
             >
               Cancel
             </button>
@@ -238,7 +243,7 @@ export function SelectionBar() {
           <Menu
             label="Add to collection"
             testId="selection-add-to-collection"
-            className="flex items-center gap-1.5 rounded-md bg-violet-600 px-3 py-1 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
+            className="flex min-h-12 items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-base font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
             disabled={busy}
             icon={
               <>
@@ -289,7 +294,7 @@ export function SelectionBar() {
           title="Clear selection"
           aria-label="Clear selection"
           data-testid="selection-clear"
-          className="flex items-center justify-center rounded-md p-1.5 text-violet-800 transition-colors hover:bg-violet-100"
+          className="flex h-12 w-12 items-center justify-center rounded-lg text-violet-800 transition-colors hover:bg-violet-100"
         >
           <CloseIcon />
         </button>

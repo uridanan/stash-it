@@ -102,11 +102,11 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
         <Link
           href={`/article/${article.id}`}
           onClick={handleOpen}
-          className="text-base font-semibold leading-snug text-slate-900 hover:text-violet-700"
+          className="text-lg font-semibold leading-snug text-slate-900 hover:text-violet-700"
         >
           {article.title}
         </Link>
-        <p className="mt-0.5 text-xs text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           {article.siteName && (
             <>
               <a
@@ -148,7 +148,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
           onClick={() => patch({ starred: !article.starred })}
           title={article.starred ? "Unstar" : "Star"}
           aria-label={article.starred ? "Unstar" : "Star"}
-          className={`rounded p-1.5 text-sm transition-colors hover:bg-slate-100 disabled:opacity-50 ${
+          className={`flex h-12 w-12 items-center justify-center rounded-lg text-xl transition-colors hover:bg-slate-100 disabled:opacity-50 ${
             article.starred ? "text-cyan-600" : "text-slate-400"
           }`}
         >
@@ -162,7 +162,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
           aria-label={archived ? "Mark as unread" : "Mark as read"}
           // One control, two states: the tick carries the read/unread status
           // in its colour rather than needing a second button beside it.
-          className={`rounded p-1.5 text-sm transition-colors hover:bg-slate-100 disabled:opacity-50 ${
+          className={`flex h-12 w-12 items-center justify-center rounded-lg text-xl transition-colors hover:bg-slate-100 disabled:opacity-50 ${
             archived
               ? "text-violet-600 hover:text-violet-700"
               : "text-slate-400 hover:text-slate-700"
@@ -176,7 +176,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
           onClick={handleDelete}
           title="Delete"
           aria-label="Delete"
-          className="rounded p-1.5 text-sm text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+          className="flex h-12 w-12 items-center justify-center rounded-lg text-xl text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
         >
           ✕
         </button>

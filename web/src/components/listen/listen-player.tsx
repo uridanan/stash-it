@@ -21,7 +21,7 @@ import { RATES, useListen } from "@/components/listen/listen-provider";
  * violet and slate player. Inline SVG inherits `currentColor` and matches the
  * stroke weight used elsewhere in the app.
  */
-const ICON_CLASS = "h-4 w-4";
+const ICON_CLASS = "h-6 w-6";
 
 function IconPrevious() {
   return (
@@ -43,7 +43,7 @@ function IconNext() {
 
 function IconPlay() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7" aria-hidden>
       <path d="M8.5 5.4a1 1 0 0 1 1.52-.86l9 5.6a1 1 0 0 1 0 1.72l-9 5.6A1 1 0 0 1 8.5 16.6V5.4Z" />
     </svg>
   );
@@ -51,7 +51,7 @@ function IconPlay() {
 
 function IconPause() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7" aria-hidden>
       <path d="M9 5h2.2v14H9zM12.8 5H15v14h-2.2z" />
     </svg>
   );
@@ -76,7 +76,7 @@ function IconSeek({ seconds, back }: { seconds: number; back: boolean }) {
           d="M4.5 9.5h5v-5M4.9 9.6a8 8 0 1 1-1.2 5.2"
         />
       </svg>
-      <span className="text-[11px] tabular-nums">{seconds}</span>
+      <span className="text-sm tabular-nums">{seconds}</span>
     </span>
   );
 }
@@ -149,7 +149,7 @@ export function ListenPlayer() {
   const spoken = Math.max(activeIndex + 1, 0);
   const percent = totalChunks > 0 ? (spoken / totalChunks) * 100 : 0;
   const buttonClass =
-    "flex items-center justify-center rounded-md px-2 py-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40";
+    "flex h-12 min-w-12 shrink-0 items-center justify-center rounded-lg px-2 text-base text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40";
 
   return (
     <div
@@ -169,7 +169,7 @@ export function ListenPlayer() {
 
       {active ? (
         <>
-          <div className="flex items-center gap-3 text-xs text-slate-500">
+          <div className="flex items-center gap-3 text-sm text-slate-600">
             <span data-testid="listen-position" className="shrink-0">
               {queue ? (
                 <span
@@ -188,7 +188,7 @@ export function ListenPlayer() {
               aria-valuemin={0}
               aria-valuemax={totalChunks}
               aria-valuenow={spoken}
-              className="h-1 flex-1 overflow-hidden rounded-full bg-slate-200"
+              className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"
             >
               <div
                 className="h-full bg-violet-600 transition-[width] duration-300"
@@ -198,20 +198,21 @@ export function ListenPlayer() {
           </div>
 
           {/*
-            Three equal columns so the transport stays optically centred on the
-            play button regardless of whether the queue controls are present:
-            speed on the left, stop on the right, both the same fixed width.
+            Equal side columns keep the transport centred on the play button.
+            A flex row with a fixed left width drifted: the speed menu's
+            min-content size widened that side, and the next button stayed in
+            the cluster even when there was no previous button to balance it.
           */}
-          <div className="mt-1 flex items-center gap-2 pb-2">
-            <div className="flex w-20 shrink-0 items-center">
-              <label className="flex items-center text-xs text-slate-500">
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 pb-3">
+            <div className="justify-self-start">
+              <label className="flex items-center text-base text-slate-600">
                 <span className="sr-only">Reading speed</span>
                 <select
                   value={rate}
                   onChange={(event) => setRate(Number(event.target.value))}
                   data-testid="listen-rate"
                   aria-label="Reading speed"
-                  className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-700 outline-none transition-colors focus:border-violet-600"
+                  className="min-h-12 rounded-lg border border-slate-200 bg-white px-3 py-2 text-base text-slate-800 outline-none transition-colors focus:border-violet-600"
                 >
                   {RATES.map((value) => (
                     <option key={value} value={value}>
@@ -222,7 +223,7 @@ export function ListenPlayer() {
               </label>
             </div>
 
-            <div className="flex flex-1 items-center justify-center gap-1">
+            <div className="flex items-center justify-center gap-1">
               {queue ? (
                 <button
                   type="button"
@@ -255,7 +256,7 @@ export function ListenPlayer() {
                 title={status === "playing" ? "Pause" : "Play"}
                 aria-label={status === "playing" ? "Pause" : "Play"}
                 data-testid="listen-toggle"
-                className="mx-1 flex h-11 w-11 items-center justify-center rounded-full bg-violet-600 text-white shadow-sm transition-colors hover:bg-violet-700"
+                className="mx-1 flex h-14 w-14 items-center justify-center rounded-full bg-violet-600 text-white shadow-sm transition-colors hover:bg-violet-700"
               >
                 {status === "playing" ? <IconPause /> : <IconPlay />}
               </button>
@@ -273,20 +274,22 @@ export function ListenPlayer() {
                 <IconSeek seconds={10} back={false} />
               </button>
 
-              <button
-                type="button"
-                onClick={next}
-                disabled={!queue || !hasNext}
-                title="Next article"
-                aria-label="Next article"
-                data-testid="listen-next"
-                className={`${buttonClass} ${queue ? "" : "invisible"}`}
-              >
-                <IconNext />
-              </button>
+              {queue ? (
+                <button
+                  type="button"
+                  onClick={next}
+                  disabled={!hasNext}
+                  title="Next article"
+                  aria-label="Next article"
+                  data-testid="listen-next"
+                  className={buttonClass}
+                >
+                  <IconNext />
+                </button>
+              ) : null}
             </div>
 
-            <div className="flex w-20 shrink-0 justify-end">
+            <div className="justify-self-end">
               <button
                 type="button"
                 onClick={stop}
@@ -295,7 +298,7 @@ export function ListenPlayer() {
                 data-testid="listen-stop"
                 className={buttonClass}
               >
-                ✕
+                <span className="text-xl leading-none">✕</span>
               </button>
             </div>
           </div>

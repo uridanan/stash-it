@@ -2,12 +2,16 @@
  *
  * Strategy:
  *  - install: pre-cache the offline fallback page.
- *  - navigations: network-first, fall back to cache, then /offline.html.
+ *  - navigations: network, with navigation preload so the request starts
+ *    while the worker boots. The response is passed straight through.
+ *    Cloning it into the cache stalls the stream on a large article page,
+ *    which made opening the app and an article feel slow. Offline falls
+ *    back to /offline.html.
  *  - same-origin static assets (/_next/static/, /icons/): cache-first.
- *  - activate: delete caches from older versions.
+ *  - activate: enable navigation preload and delete caches from older versions.
  */
 
-const CACHE_VERSION = "stash-v1";
+const CACHE_VERSION = "stash-v2";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -21,16 +25,18 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== CACHE_VERSION)
-            .map((key) => caches.delete(key)),
-        ),
-      )
-      .then(() => self.clients.claim()),
+    (async () => {
+      if (self.registration.navigationPreload) {
+        await self.registration.navigationPreload.enable();
+      }
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key !== CACHE_VERSION)
+          .map((key) => caches.delete(key)),
+      );
+      await self.clients.claim();
+    })(),
   );
 });
 
@@ -41,33 +47,26 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigations: network-first, then cache, then offline fallback.
+  // Navigations: don't buffer the body. A cloned article page is large
+  // enough that the cache write holds up the bytes the screen is waiting for.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Keep a copy of successful navigations for offline fallback.
-          if (response.ok) {
-            const copy = response.clone();
-            caches
-              .open(CACHE_VERSION)
-              .then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() =>
-          caches
-            .match(request)
-            .then((cached) => cached || caches.match(OFFLINE_URL))
-            .then(
-              (fallback) =>
-                fallback ||
-                new Response("Offline", {
-                  status: 503,
-                  headers: { "Content-Type": "text/plain" },
-                }),
-            ),
-        ),
+      (async () => {
+        try {
+          const preload = await event.preloadResponse;
+          if (preload) return preload;
+          return await fetch(request);
+        } catch {
+          const fallback = await caches.match(OFFLINE_URL);
+          return (
+            fallback ||
+            new Response("Offline", {
+              status: 503,
+              headers: { "Content-Type": "text/plain" },
+            })
+          );
+        }
+      })(),
     );
     return;
   }

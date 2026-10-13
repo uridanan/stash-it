@@ -1,9 +1,32 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { CloseIcon } from "@/components/icons";
 import { JobProgress } from "@/components/job-progress";
+
+/** A file the importer accepts. Column order does not matter; names do. */
+const CSV_TEMPLATE = [
+  "URL,Title,Selection,Folder,Timestamp,Tags",
+  'https://ex.com/a,A title,Opening line,Unread,1710000000,"[""News""]"',
+  "https://ex.com/b,Already read,,Archive,1710001000,[]",
+  "https://ex.com/c,Kept close,,Starred,1710002000,[]",
+  "",
+].join("\n");
+
+const CSV_FIELDS: { name: string; need: "Required" | "Optional"; detail: string }[] = [
+  { name: "URL", need: "Required", detail: "The link to save." },
+  { name: "Title", need: "Optional", detail: "Name shown in the list." },
+  { name: "Selection", need: "Optional", detail: "A short excerpt." },
+  {
+    name: "Folder",
+    need: "Optional",
+    detail: "Archive = read; Starred = starred and unread; else unread.",
+  },
+  { name: "Timestamp", need: "Optional", detail: "When it was saved, as Unix seconds." },
+  { name: "Tags", need: "Optional", detail: 'Collection names, as ["News"].' },
+];
 
 /**
  * Backup, restore, Markdown export and the one-time Instapaper import.
@@ -71,6 +94,76 @@ function Option<T extends string>({
   );
 }
 
+function downloadCsvTemplate() {
+  const url = URL.createObjectURL(new Blob([CSV_TEMPLATE], { type: "text/csv" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "stash-import.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function CsvFormatDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    else if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      data-testid="instapaper-format"
+      onClose={onClose}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+      className="fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-5 text-slate-800 shadow-xl backdrop:bg-slate-900/40"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <h4 className="text-sm font-medium text-slate-900">Expected format: CSV file</h4>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="rounded-md p-1 text-slate-500 hover:bg-slate-100"
+        >
+          <CloseIcon />
+        </button>
+      </div>
+      <pre className="mt-3 overflow-x-auto whitespace-pre rounded-lg bg-slate-50 p-3 font-mono text-[11px] leading-relaxed text-slate-700">
+        {CSV_TEMPLATE.trim()}
+      </pre>
+      <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-slate-600">
+        {CSV_FIELDS.map((field) => (
+          <li key={field.name}>
+            <span className="font-medium text-slate-800">{field.name}</span>
+            {" — "}
+            {field.need}. {field.detail}
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={downloadCsvTemplate}
+        data-testid="download-csv-template"
+        className={`${buttonClass} mt-4`}
+      >
+        Download template
+      </button>
+    </dialog>
+  );
+}
+
 export function DataTransfer() {
   const router = useRouter();
   const backupInput = useRef<HTMLInputElement>(null);
@@ -82,6 +175,7 @@ export function DataTransfer() {
   const [tags, setTags] = useState<TagsOption>("assign");
   const [content, setContent] = useState<ContentOption>("missing");
   const [summaryMode, setSummaryMode] = useState<SummaryOption>("ondemand");
+  const [formatOpen, setFormatOpen] = useState(false);
 
   async function upload(
     file: File,
@@ -225,15 +319,38 @@ export function DataTransfer() {
               if (file) void upload(file, "/api/import", "backup");
             }}
           />
-          <button
-            type="button"
-            onClick={() => instapaperInput.current?.click()}
-            disabled={busy !== null}
-            data-testid="import-instapaper"
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
-          >
-            {busy === "instapaper" ? "Importing…" : "↑ From Instapaper"}
-          </button>
+          <span className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => instapaperInput.current?.click()}
+              disabled={busy !== null}
+              data-testid="import-instapaper"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+            >
+              {busy === "instapaper" ? "Importing…" : "↑ From Instapaper"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormatOpen(true)}
+              aria-label="Expected CSV format"
+              data-testid="instapaper-format-info"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-4 w-4"
+                aria-hidden
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path strokeLinecap="round" d="M12 11v6" />
+                <circle cx="12" cy="7.5" r="0.9" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+          </span>
+          <CsvFormatDialog open={formatOpen} onClose={() => setFormatOpen(false)} />
           <input
             ref={instapaperInput}
             type="file"
@@ -246,19 +363,14 @@ export function DataTransfer() {
             }}
           />
         </div>
-        <p className="mt-1 text-xs text-slate-500">
-          Restore takes either the <code className="font-mono">.tar.gz</code>{" "}
-          archive or an older{" "}
-          <code className="font-mono">.ndjson.gz</code> backup. Articles already
-          saved are never touched, so restoring twice is harmless — to correct
-          one, refetch it from its own page, or delete it and import again.
-          Instapaper wants the CSV from its Settings → Export. It carries no
-          article text, so those arrive as links. Read, unread, and star always
-          come from the file&apos;s folder, whichever collection option is
-          selected. Star is never assigned automatically. Importing that CSV
-          again updates only those: nothing is duplicated and collections stay
-          as they are.
-        </p>
+        <div
+          data-testid="import-behavior"
+          className="mt-3 space-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600"
+        >
+          <p>Import will not create duplicates of existing articles.</p>
+          <p>Stash-it import leaves existing articles untouched.</p>
+          <p>CSV import (Instapaper) updates the Read / Unread / Starred status of existing articles.</p>
+        </div>
       </section>
 
       {error ? (

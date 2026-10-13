@@ -35,5 +35,8 @@
       "text": "text",
       "title": "title"
     }
+  },
+  "launch_handler": {
+    "client_mode": "navigate-new"
   }
 }

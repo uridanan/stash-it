@@ -82,7 +82,7 @@ export function KindleSettings() {
           }}
           placeholder="you@kindle.com"
           data-testid="kindle-email"
-          className="w-full max-w-md rounded-md border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-violet-600"
+          className="min-h-12 w-full max-w-md rounded-lg border border-slate-200 px-3 py-2 text-base outline-none focus:border-violet-600"
         />
         <p className="mt-1 text-sm text-slate-500">
           Find it under Manage Your Content and Devices → Preferences → Personal
@@ -121,7 +121,7 @@ export function KindleSettings() {
           type="submit"
           disabled={saving}
           data-testid="kindle-save"
-          className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
+          className="min-h-12 rounded-lg bg-violet-600 px-4 py-3 text-base font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save"}
         </button>

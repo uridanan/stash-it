@@ -219,8 +219,13 @@ test("share target /save?text=... saves the shared URL (Google app format)", asy
   await expect(page.getByTestId("save-confirmation")).toBeVisible({
     timeout: 20_000,
   });
+  await expect(page.getByRole("button", { name: "Mark as read" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open article" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
+  await expect(page).toHaveURL(/\/save/);
   await expect(page.getByTestId("save-confirmation")).toContainText(
-    ARTICLE_TITLE
+    ARTICLE_TITLE,
+    { timeout: 20_000 },
   );
   await page.goto("/");
   await expect(

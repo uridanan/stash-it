@@ -128,7 +128,7 @@ export function TagEditor({
         placeholder="Add tag…"
         aria-label="Add tag"
         data-testid="tag-input"
-        className="w-28 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs outline-none transition-colors focus:border-violet-500 focus:bg-white"
+        className="min-h-12 w-40 rounded-full border border-dashed border-slate-300 px-4 text-base outline-none transition-colors focus:border-violet-500 focus:bg-white"
       />
 
       {open && (suggestions.length > 0 || (trimmed && !exactExists)) ? (
@@ -141,7 +141,7 @@ export function TagEditor({
               <button
                 type="button"
                 onClick={() => void add(tag.name)}
-                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+                className="flex min-h-12 w-full items-center justify-between px-4 py-3 text-left text-base text-slate-800 hover:bg-slate-50"
               >
                 <span>{tag.name}</span>
                 <span className="text-xs text-slate-400">{tag.articleCount}</span>
@@ -154,7 +154,7 @@ export function TagEditor({
                 type="button"
                 onClick={() => void add(trimmed)}
                 data-testid="tag-create"
-                className="w-full px-3 py-1.5 text-left text-sm text-violet-700 hover:bg-violet-50"
+                className="min-h-12 w-full px-4 py-3 text-left text-base text-violet-700 hover:bg-violet-50"
               >
                 Create “{trimmed}”
               </button>

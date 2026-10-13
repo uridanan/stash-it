@@ -22,21 +22,27 @@ import {
  */
 export async function ArticleReader({ article }: { article: ArticleRow }) {
   const session = await auth();
-  const settings = session?.user?.id
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: {
-          aiSummariesEnabled: true,
-          aiApiKey: true,
-          summaryView: true,
-          kindleEmail: true,
-        },
-      })
-    : null;
+  const userId = session?.user?.id;
+  // Settings and tags are independent of each other. Waiting on them one
+  // after the other held the article on screen for an extra round trip.
+  const [settings, tagMap] = await Promise.all([
+    userId
+      ? prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            aiSummariesEnabled: true,
+            aiApiKey: true,
+            summaryView: true,
+            kindleEmail: true,
+          },
+        })
+      : Promise.resolve(null),
+    tagsForArticles([article.id]),
+  ]);
   const aiConfigured = Boolean(settings?.aiSummariesEnabled && settings?.aiApiKey);
   // Needs both halves: an address to send to and a transport to send with.
   const kindleConfigured = Boolean(settings?.kindleEmail && mailConfig());
-  const tags = (await tagsForArticles([article.id])).get(article.id) ?? [];
+  const tags = tagMap.get(article.id) ?? [];
   const stub = isStub(article);
   const summaryView = settings?.summaryView === "tabs" ? "tabs" : "card";
   const savedDate = new Date(article.savedAt);
@@ -111,7 +117,12 @@ export async function ArticleReader({ article }: { article: ArticleRow }) {
           <GenerateSummaryButton articleId={article.id} />
         )}
 
-        {stub && <FetchText articleId={article.id} />}
+        {stub && (
+          <FetchText
+            articleId={article.id}
+            watch={Date.now() - new Date(article.savedAt).getTime() < 2 * 60 * 1000}
+          />
+        )}
 
         {article.extractionFailed && (
           <div className="mt-6 rounded-lg border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900">

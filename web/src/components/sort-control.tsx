@@ -34,11 +34,11 @@ export function SortControl() {
   }
 
   const selectClass =
-    "rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none transition-colors focus:border-violet-600";
+    "min-h-12 rounded-lg border border-slate-200 bg-white px-3 py-2 text-base text-slate-800 outline-none transition-colors focus:border-violet-600";
 
   return (
     <div className="flex items-center gap-2" data-testid="sort-control">
-      <label className="flex items-center gap-1 text-xs text-slate-500">
+      <label className="flex items-center gap-2 text-base text-slate-600">
         <span className="sr-only">Sort by</span>
         <select
           value={sort}
@@ -51,7 +51,7 @@ export function SortControl() {
           <option value="published">Date published</option>
         </select>
       </label>
-      <label className="flex items-center gap-1 text-xs text-slate-500">
+      <label className="flex items-center gap-2 text-base text-slate-600">
         <span className="sr-only">Order</span>
         <select
           value={order}

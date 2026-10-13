@@ -26,7 +26,7 @@ export function TagChip({
   href?: string;
   onRemove?: () => void;
 }) {
-  const className = `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${KIND_STYLES[tag.kind]}`;
+  const className = `inline-flex min-h-10 items-center gap-1 rounded-full border px-3 py-1.5 text-sm ${KIND_STYLES[tag.kind]}`;
   const label = href ? (
     <Link href={href} className="hover:underline">
       {tag.name}
@@ -43,7 +43,7 @@ export function TagChip({
           type="button"
           onClick={onRemove}
           aria-label={`Remove tag ${tag.name}`}
-          className="-mr-0.5 rounded-full px-0.5 leading-none opacity-60 transition-opacity hover:opacity-100"
+          className="-mr-1 flex h-8 w-8 items-center justify-center rounded-full text-lg leading-none opacity-60 transition-opacity hover:opacity-100"
         >
           ×
         </button>

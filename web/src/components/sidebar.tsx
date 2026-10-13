@@ -16,7 +16,7 @@ const COLLECTIONS_OPEN_KEY = "stash:sidebar-collections-open";
 
 const COLLECTIONS_ICON = (
 
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 shrink-0" aria-hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 shrink-0" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 11.2V5a1 1 0 0 1 1-1h6.2a1 1 0 0 1 .7.3l8 8a1 1 0 0 1 0 1.4l-6.2 6.2a1 1 0 0 1-1.4 0l-8-8a1 1 0 0 1-.3-.7ZM7.8 8.3h.01" />
       </svg>
     
@@ -33,7 +33,7 @@ const NAV_ITEMS: {
     label: "Home",
     href: "/",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 shrink-0" aria-hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 shrink-0" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 10.5 12 3l9 7.5M5.5 8.9V20a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V8.9" />
       </svg>
     ),
@@ -43,7 +43,7 @@ const NAV_ITEMS: {
     label: "Read",
     href: "/archive",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 shrink-0" aria-hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 shrink-0" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 5h17v4h-17zM5 9v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4" />
       </svg>
     ),
@@ -53,7 +53,7 @@ const NAV_ITEMS: {
     label: "Starred",
     href: "/starred",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 shrink-0" aria-hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 shrink-0" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="m12 3.5 2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.7l5.9-.8z" />
       </svg>
     ),
@@ -119,7 +119,7 @@ function Avatar({ user, className }: { user: SidebarUser; className: string }) {
 
 function SearchIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 shrink-0" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 shrink-0" aria-hidden>
       <circle cx="11" cy="11" r="6.5" />
       <path strokeLinecap="round" d="m16 16 4.5 4.5" />
     </svg>
@@ -168,7 +168,7 @@ function CollectionsSection({
     });
   }
 
-  const rowClass = `flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors ${
+  const rowClass = `flex items-center gap-3 rounded-lg px-2.5 py-3 text-base transition-colors ${
     active === "tags"
       ? "bg-violet-50 font-medium text-violet-700"
       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -202,14 +202,14 @@ function CollectionsSection({
           aria-expanded={open}
           aria-label={open ? "Hide collections" : "Show collections"}
           data-testid="collections-toggle"
-          className="rounded p-0.5 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
+          className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
         >
           <svg
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
-            className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`}
+            className={`h-6 w-6 transition-transform ${open ? "rotate-90" : ""}`}
             aria-hidden
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="m9 6 6 6-6 6" />
@@ -229,7 +229,7 @@ function CollectionsSection({
                 <Link
                   href={`/tags/${tag.slug}`}
                   onClick={onNavigate}
-                  className={`flex items-center justify-between gap-2 rounded-lg py-1.5 pl-10 pr-2.5 text-sm transition-colors ${
+                  className={`flex min-h-12 items-center justify-between gap-2 rounded-lg py-3 pl-10 pr-2.5 text-base transition-colors ${
                     activeTagSlug === tag.slug
                       ? "bg-violet-50 font-medium text-violet-700"
                       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -278,7 +278,7 @@ function SidebarContent({
             href={item.href}
             onClick={onNavigate}
             title={collapsed ? `${item.label} (${counts[item.key]})` : undefined}
-            className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors ${
+            className={`flex min-h-12 items-center gap-3 rounded-lg px-2.5 py-3 text-base transition-colors ${
               active === item.key
                 ? "bg-violet-50 font-medium text-violet-700"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -316,7 +316,7 @@ function SidebarContent({
             onClick={onExpand}
             title="Search"
             aria-label="Search"
-            className="flex w-full items-center justify-center rounded-lg px-2.5 py-2 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            className="flex min-h-12 w-full items-center justify-center rounded-lg px-2.5 py-3 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
           >
             <SearchIcon />
           </button>
@@ -331,7 +331,7 @@ function SidebarContent({
               defaultValue={q ?? ""}
               placeholder="Search"
               aria-label="Search articles"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-2.5 text-sm outline-none transition-colors focus:border-violet-600 focus:bg-white"
+              className="min-h-12 w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-11 pr-3 text-base outline-none transition-colors focus:border-violet-600 focus:bg-white"
             />
           </form>
         )}
@@ -340,14 +340,14 @@ function SidebarContent({
       <div className="mt-auto border-t border-slate-200 p-2">
         <details className="relative">
           <summary
-            className="menu-button flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-slate-100"
+            className="menu-button flex min-h-12 items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-100"
             aria-label="Account menu"
             title={collapsed ? (user.name ?? "Account") : undefined}
           >
             <Avatar user={user} className="h-8 w-8 shrink-0" />
             {!collapsed && (
               <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-slate-900">
+                <span className="block truncate text-base font-medium text-slate-900">
                   {user.name ?? "Signed in"}
                 </span>
                 <span className="block truncate text-xs text-slate-500">
@@ -360,14 +360,14 @@ function SidebarContent({
             <Link
               href="/settings"
               onClick={onNavigate}
-              className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              className="block min-h-12 px-4 py-3 text-base text-slate-800 hover:bg-slate-50"
             >
               Settings
             </Link>
             <form action={signOutAction}>
               <button
                 type="submit"
-                className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                className="block min-h-12 w-full px-4 py-3 text-left text-base text-slate-800 hover:bg-slate-50"
               >
                 Sign out
               </button>
@@ -403,14 +403,14 @@ export function Sidebar(props: SidebarProps) {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="fixed inset-x-0 top-0 z-20 flex h-12 items-center gap-3 border-b border-slate-200 bg-white px-3 md:hidden">
+      <div className="fixed inset-x-0 top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-3 md:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Open navigation"
-          className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100"
+          className="flex h-12 w-12 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-7 w-7" aria-hidden>
             <path strokeLinecap="round" d="M4 6.5h16M4 12h16M4 17.5h16" />
           </svg>
         </button>
@@ -440,9 +440,9 @@ export function Sidebar(props: SidebarProps) {
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label="Close navigation"
-                className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100"
+                className="flex h-12 w-12 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-7 w-7" aria-hidden>
                   <path strokeLinecap="round" d="m6 6 12 12M18 6 6 18" />
                 </svg>
               </button>
@@ -478,14 +478,14 @@ export function Sidebar(props: SidebarProps) {
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="rounded-lg p-1.5 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            className="flex h-12 w-12 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
           >
             <svg
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="1.8"
-              className={`h-5 w-5 transition-transform ${collapsed ? "rotate-180" : ""}`}
+              className={`h-6 w-6 transition-transform ${collapsed ? "rotate-180" : ""}`}
               aria-hidden
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 6-6 6 6 6" />

@@ -170,7 +170,7 @@ export function TokenManager() {
                 <button
                   type="button"
                   onClick={() => handleDelete(token.id)}
-                  className="shrink-0 rounded px-2 py-1 text-sm text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                  className="inline-flex min-h-12 shrink-0 items-center rounded-lg px-4 py-2 text-base text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600"
                 >
                   Delete
                 </button>
