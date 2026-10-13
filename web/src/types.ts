@@ -28,6 +28,11 @@ export interface ArticleListItemDTO {
   publishedAt: string | null;
   /** BCP-47 language declared by the page, e.g. "he", "fr-CA". */
   lang: string | null;
+  /**
+   * Collections on this article. Only set when the list was requested with
+   * `include=tags`; other clients keep the previous payload.
+   */
+  tags?: ArticleTagDTO[];
 }
 
 /** A collection. Doubles as a playlist — its articles carry an explicit order. */

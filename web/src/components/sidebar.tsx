@@ -22,7 +22,12 @@ const COLLECTIONS_ICON = (
     
 );
 
-const NAV_ITEMS: { key: ActiveNav; label: string; href: string; icon: React.ReactNode }[] = [
+const NAV_ITEMS: {
+  key: "home" | "archive" | "starred";
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+}[] = [
   {
     key: "home",
     label: "Home",
@@ -73,11 +78,19 @@ export interface SidebarTag {
   articleCount: number;
 }
 
+/** Article totals for Home (unread), Read, and Starred. */
+export interface NavCounts {
+  home: number;
+  archive: number;
+  starred: number;
+}
+
 interface SidebarProps {
   active: ActiveNav;
   q?: string;
   user: SidebarUser;
   signOutAction: () => Promise<void>;
+  counts: NavCounts;
   /** The user's collections, listed under the Collections item. */
   tags?: SidebarTag[];
   /** Slug of the collection currently open, for highlighting. */
@@ -223,7 +236,7 @@ function CollectionsSection({
                   }`}
                 >
                   <span className="truncate">{tag.name}</span>
-                  <span className="shrink-0 text-xs text-slate-400">
+                  <span className="shrink-0 text-xs tabular-nums text-slate-400">
                     {tag.articleCount}
                   </span>
                 </Link>
@@ -243,6 +256,7 @@ function SidebarContent({
   q,
   user,
   signOutAction,
+  counts,
   tags = [],
   activeTagSlug,
   collapsed,
@@ -263,7 +277,7 @@ function SidebarContent({
             key={item.key}
             href={item.href}
             onClick={onNavigate}
-            title={collapsed ? item.label : undefined}
+            title={collapsed ? `${item.label} (${counts[item.key]})` : undefined}
             className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors ${
               active === item.key
                 ? "bg-violet-50 font-medium text-violet-700"
@@ -271,7 +285,17 @@ function SidebarContent({
             }`}
           >
             {item.icon}
-            {!collapsed && <span>{item.label}</span>}
+            {!collapsed && (
+              <>
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                <span
+                  className="shrink-0 text-xs tabular-nums text-slate-400"
+                  data-testid={`nav-count-${item.key}`}
+                >
+                  {counts[item.key]}
+                </span>
+              </>
+            )}
           </Link>
         ))}
 

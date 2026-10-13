@@ -11,6 +11,7 @@ import {
   toArticleListItemDTO,
 } from "@/lib/articles";
 import { ExtractionError } from "@/lib/extract";
+import { tagsForArticles } from "@/lib/tags";
 import type { ArticleListResponse, ArticleState } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -75,8 +76,16 @@ export async function GET(req: Request) {
     limit,
   });
 
+  const items = articles.map(toArticleListItemDTO);
+  if (params.get("include") === "tags") {
+    const tagsByArticle = await tagsForArticles(items.map((article) => article.id));
+    for (const item of items) {
+      item.tags = tagsByArticle.get(item.id) ?? [];
+    }
+  }
+
   const payload: ArticleListResponse = {
-    articles: articles.map(toArticleListItemDTO),
+    articles: items,
     nextCursor,
   };
   return NextResponse.json(payload);

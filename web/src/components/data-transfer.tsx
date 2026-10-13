@@ -16,6 +16,7 @@ import { JobProgress } from "@/components/job-progress";
 interface ImportSummary {
   articlesCreated: number;
   articlesSkipped: number;
+  articlesUpdated?: number;
   tagsCreated: number;
   bodiesAttached: number;
   settingsApplied: boolean;
@@ -251,8 +252,12 @@ export function DataTransfer() {
           <code className="font-mono">.ndjson.gz</code> backup. Articles already
           saved are never touched, so restoring twice is harmless — to correct
           one, refetch it from its own page, or delete it and import again.
-          Instapaper wants the CSV from its Settings → Export; it carries no
-          article text, so those arrive as links.
+          Instapaper wants the CSV from its Settings → Export. It carries no
+          article text, so those arrive as links. Read, unread, and star always
+          come from the file&apos;s folder, whichever collection option is
+          selected. Star is never assigned automatically. Importing that CSV
+          again updates only those: nothing is duplicated and collections stay
+          as they are.
         </p>
       </section>
 
@@ -270,6 +275,11 @@ export function DataTransfer() {
           <p className="font-medium text-violet-800">Import finished</p>
           <ul className="mt-1 space-y-0.5 text-xs">
             <li>{summary.articlesCreated} article(s) added</li>
+            {(summary.articlesUpdated ?? 0) > 0 && (
+              <li>
+                {summary.articlesUpdated} read/unread or star status(es) updated
+              </li>
+            )}
             <li>{summary.articlesSkipped} already present, left alone</li>
             {summary.bodiesAttached > 0 && (
               <li>{summary.bodiesAttached} article text(s) restored</li>

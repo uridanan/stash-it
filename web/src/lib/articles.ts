@@ -130,6 +130,22 @@ export interface ListArticlesResult {
   nextCursor: string | null;
 }
 
+/** Sidebar totals. Home is the unread list; Read is the archive; Starred spans both. */
+export interface LibraryCounts {
+  unread: number;
+  read: number;
+  starred: number;
+}
+
+export async function libraryCounts(userId: string): Promise<LibraryCounts> {
+  const [unread, read, starred] = await Promise.all([
+    prisma.article.count({ where: { userId, state: "UNREAD" } }),
+    prisma.article.count({ where: { userId, state: "ARCHIVED" } }),
+    prisma.article.count({ where: { userId, starred: true } }),
+  ]);
+  return { unread, read, starred };
+}
+
 /**
  * List a user's articles with keyset pagination (cursor = id of the last item
  * of the previous page). q matches title/excerpt/siteName, case-insensitive.

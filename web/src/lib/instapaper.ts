@@ -125,6 +125,41 @@ export function mapFolder(folder: string): MappedArticle {
   }
 }
 
+/**
+ * The read/unread and star change a repeat import should write.
+ *
+ * Null means both already match the file, so the row is left alone. `readAt`
+ * is present only when read/unread itself changes, so a star-only update does
+ * not rewrite when the article was read. Star comes only from the file — it
+ * is never derived. Collections are not part of this.
+ */
+export function readingStatePatch(
+  current: { state: "UNREAD" | "ARCHIVED"; starred: boolean },
+  incoming: {
+    state: "UNREAD" | "ARCHIVED";
+    readAt: Date | null;
+    starred: boolean;
+  },
+): {
+  state: "UNREAD" | "ARCHIVED";
+  starred: boolean;
+  readAt?: Date | null;
+} | null {
+  const stateChanged = current.state !== incoming.state;
+  const starChanged = current.starred !== incoming.starred;
+  if (!stateChanged && !starChanged) return null;
+
+  const patch: {
+    state: "UNREAD" | "ARCHIVED";
+    starred: boolean;
+    readAt?: Date | null;
+  } = { state: incoming.state, starred: incoming.starred };
+  if (stateChanged) {
+    patch.readAt = incoming.state === "ARCHIVED" ? incoming.readAt : null;
+  }
+  return patch;
+}
+
 function isHttpUrl(value: string): boolean {
   try {
     const parsed = new URL(value);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/api-auth";
 import { Importer, instapaperToRecords } from "@/lib/backup";
+import { parseImportOptions } from "@/lib/backup-archive";
 import { parseInstapaperCsv } from "@/lib/instapaper";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ function jsonError(error: string, status: number) {
 }
 
 /**
- * One-time import of an Instapaper CSV export.
+ * Import of an Instapaper CSV export.
  *
  * Read whole rather than streamed: quoted CSV fields may contain newlines, so
  * a line-at-a-time reader would need its own state machine for no real gain at
@@ -23,6 +24,12 @@ function jsonError(error: string, status: number) {
  *
  * Rows arrive as stubs — the export carries no article text — and the full
  * text is fetched afterwards, per article or in bulk.
+ *
+ * Read/unread and star always come from the Folder column. Star is never
+ * derived. The collections option only decides whether a *new* row takes the
+ * file's tags or leaves them for automatic assignment. A URL already saved is
+ * not duplicated and its collections are left as they are; read/unread and
+ * star are updated from the file.
  */
 export async function POST(req: Request) {
   const user = await requireUser(req);
@@ -50,7 +57,13 @@ export async function POST(req: Request) {
     return jsonError("No usable rows found in that CSV", 422);
   }
 
-  const importer = new Importer(user.userId);
+  const options = parseImportOptions(
+    Object.fromEntries(new URL(req.url).searchParams),
+  );
+  const importer = new Importer(user.userId, {
+    tags: options.tags,
+    updateReadingState: true,
+  });
   await importer.load();
   for (const record of instapaperToRecords(parsed.rows)) {
     await importer.add(record);

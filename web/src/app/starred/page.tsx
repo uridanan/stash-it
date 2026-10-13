@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getArticle, listArticles, parseOrder, parseSort } from "@/lib/articles";
 import { tagsForArticles } from "@/lib/tags";
-import { ArticleList, toRowData } from "@/components/article-list";
+import { ArticleList } from "@/components/article-list";
+import { toRowData } from "@/components/article-list-data";
 import { SortControl } from "@/components/sort-control";
 import { AppShell } from "@/components/app-shell";
 import { SplitView } from "@/components/split-view";
@@ -26,13 +27,15 @@ export default async function StarredPage({
     await searchParams;
   const query = q?.trim() || undefined;
 
+  const sort = parseSort(sortParam) ?? undefined;
+  const order = parseOrder(orderParam) ?? undefined;
   // Starred spans both unread and archived articles (state omitted = all).
-  const { articles } = await listArticles({
+  const { articles, nextCursor } = await listArticles({
     userId: session.user.id,
     starred: true,
     q: query,
-    sort: parseSort(sortParam) ?? undefined,
-    order: parseOrder(orderParam) ?? undefined,
+    sort,
+    order,
   });
 
   const tagsByArticle = await tagsForArticles(articles.map((a) => a.id));
@@ -57,6 +60,7 @@ export default async function StarredPage({
             articles={articles.map((a) =>
               toRowData(a, tagsByArticle.get(a.id) ?? []),
             )}
+            page={{ nextCursor, starred: true, q: query, sort, order }}
             emptyTitle={
               query
                 ? `No starred articles match “${query}”`

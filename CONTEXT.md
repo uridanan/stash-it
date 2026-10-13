@@ -129,9 +129,11 @@ Added since, and absent from PLAN.md:
   The player calls the engine interface only.
 - **Instapaper CSV import** (Settings → Your data). The export has URLs and
   metadata and no article text, so rows land as stubs and a fetch job fills
-  them in. Instapaper models Starred as a folder, so those rows are saved
-  starred and unread. Import still never overwrites an article already in
-  the library.
+  them in. Read, unread, and star always come from the folder, including when
+  collections are assigned automatically. Instapaper models Starred as a
+  folder, so those rows are saved starred and unread. Importing the same CSV
+  again does not duplicate rows and does not change collections; it rewrites
+  read/unread and star from the file. Star is never derived.
 - **Backups and one-way downloads.** Exact `.ndjson.gz`, a `.tar.gz` archive
   of HTML files, and per-article or per-collection Markdown, PDF, and EPUB.
 - **Send to Kindle**, as an EPUB, when `SMTP_*` is set and the user has saved
@@ -173,9 +175,14 @@ buffering the whole upload.
 titles reduce to an empty ASCII slug (Hebrew), 14 are blank, 24 collide. The
 slug is decoration.
 
-**Import never overwrites an article it already has.** Correcting one goes
-through the reader's Refetch / Resummarize, or delete-then-import. This is why
-those actions exist.
+**A backup restore never overwrites an article it already has.** Correcting
+one goes through the reader's Refetch / Resummarize, or delete-then-import.
+Instapaper is the exception, and only for read/unread and star: importing the
+same CSV again does not duplicate rows and does not change collections, but it
+does write the file's folder onto the existing article. Both are applied on
+every Instapaper import, including when collections are assigned automatically
+instead of copied from the file. Star is copied from that folder and never
+derived.
 
 **Three independent axes**: fetch content / classify topics / summarise.
 Classification reads an article's *content*, never its summary — they were
@@ -483,8 +490,11 @@ real library into the working app is the user's call, not an assistant's.
   the Compose image at http://localhost:8000 (the container listens on 8080).
   The dev server is http://localhost:3000. A change that is only on disk is
   not a change they can see, and the PDF bug above was a 500 in the image
-  while every dev-server test was green. Rebuild with
-  `docker compose up --build -d`, then exercise the real endpoint.
+  while every dev-server test was green. Run
+  `docker compose up --build --watch` from the repo root: watch rebuilds the
+  web image when `web/` changes, because the container runs the production
+  standalone server and a file sync would not hot-reload it. Port 3000 is
+  often another project — do not start Stash there to preview a change.
 - **Credentials arrive as local files and stay there.** Never commit them,
   never print them back, and do not attach them to a conversation — package
   them on disk and hand over a path instead.
@@ -495,5 +505,6 @@ real library into the working app is the user's call, not an assistant's.
 - Report honestly: if something is unverified, say so. If a gate fails, show
   it.
 - Commit messages explain *why*, not what. The branch is `main`. After a
-  change lands, rebuild so the container matches it:
+  change lands, the container has to match it. If `docker compose up --watch`
+  is already running, the next save under `web/` rebuilds the image; otherwise
   `docker compose up --build -d`.

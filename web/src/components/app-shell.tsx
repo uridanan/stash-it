@@ -1,6 +1,7 @@
 import { auth, signOut } from "@/auth";
 import { Sidebar, type ActiveNav } from "@/components/sidebar";
 import { ListenProvider } from "@/components/listen/listen-provider";
+import { libraryCounts } from "@/lib/articles";
 import { listTags } from "@/lib/tags";
 
 export type { ActiveNav };
@@ -28,7 +29,9 @@ export async function AppShell({
 }) {
   const session = await auth();
   const user = session?.user;
-  const tags = user?.id ? await listTags(user.id) : [];
+  const [tags, counts] = user?.id
+    ? await Promise.all([listTags(user.id), libraryCounts(user.id)])
+    : [[], { unread: 0, read: 0, starred: 0 }] as const;
 
   async function signOutAction() {
     "use server";
@@ -41,11 +44,16 @@ export async function AppShell({
     // on mount. Wrapping the root layout instead would put a client boundary
     // above every page and leave React streaming placeholders in the DOM.
     <ListenProvider>
-    <div className="md:flex">
+    <div className="md:flex lg:h-dvh lg:overflow-hidden">
       <Sidebar
         active={active}
         q={q}
         activeTagSlug={activeTagSlug}
+        counts={{
+          home: counts.unread,
+          archive: counts.read,
+          starred: counts.starred,
+        }}
         tags={tags.map((tag) => ({
           name: tag.name,
           slug: tag.slug,
@@ -58,7 +66,13 @@ export async function AppShell({
         }}
         signOutAction={signOutAction}
       />
-      <main className="min-w-0 flex-1 pt-12 md:pt-0">
+      <main
+        className={`min-w-0 flex-1 pt-12 md:pt-0 lg:min-h-0 ${
+          wide
+            ? "lg:flex lg:h-full lg:flex-col lg:overflow-hidden"
+            : "lg:h-full lg:overflow-y-auto"
+        }`}
+      >
         {wide ? (
           children
         ) : (

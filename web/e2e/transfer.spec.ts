@@ -185,7 +185,7 @@ test("Instapaper CSV imports with folders, stars and tags mapped", async () => {
     "",
   ].join("\n");
 
-  const res = await page.request.post("/api/import/instapaper", {
+  const res = await page.request.post("/api/import/instapaper?tags=import", {
     headers: { "content-type": "text/csv" },
     data: csv,
   });
@@ -248,6 +248,115 @@ test("an imported article offers to fetch its text, then reads normally", async 
   // Fetching also applies the automatic tags that had no content to run on.
   const { tags } = await (await page.request.get("/api/tags")).json();
   expect(tags.map((t: { name: string }) => t.name)).toContain("English");
+});
+
+test("Instapaper import always takes read status, and a second import updates only that", async () => {
+  await deleteAllArticles(page);
+  await deleteAllTags(page);
+
+  const csv = [
+    "URL,Title,Selection,Folder,Timestamp,Tags",
+    `${ARTICLE_URL}?read=1,Assigned read,,Archive,1751000000,"[""from the file""]"`,
+    `${ARTICLE_URL}?unread=1,Assigned unread,,Unread,1751000100,"[""also from the file""]"`,
+    `${ARTICLE_URL}?star=1,Assigned star,,Starred,1751000200,"[""star tag""]"`,
+  ].join("\n");
+
+  const first = await page.request.post(
+    "/api/import/instapaper?tags=assign",
+    { headers: { "content-type": "text/csv" }, data: csv },
+  );
+  expect(first.ok()).toBe(true);
+  const created = await first.json();
+  expect(created.articlesCreated).toBe(3);
+  expect(created.articlesUpdated).toBe(0);
+
+  const read = (
+    await (await page.request.get("/api/articles?state=archived&limit=50")).json()
+  ).articles;
+  const unread = (
+    await (await page.request.get("/api/articles?state=unread&limit=50")).json()
+  ).articles;
+  const readArticle = read.find(
+    (a: { title: string }) => a.title === "Assigned read",
+  );
+  const unreadArticle = unread.find(
+    (a: { title: string }) => a.title === "Assigned unread",
+  );
+  const starredArticle = unread.find(
+    (a: { title: string }) => a.title === "Assigned star",
+  );
+  expect(readArticle).toBeTruthy();
+  expect(readArticle.starred).toBe(false);
+  expect(unreadArticle).toBeTruthy();
+  expect(starredArticle).toBeTruthy();
+  expect(starredArticle.starred).toBe(true);
+
+  // Assign does not copy the file's collections. Status and star still landed.
+  const { tags } = await (await page.request.get("/api/tags")).json();
+  const names = tags.map((t: { name: string }) => t.name);
+  expect(names).not.toContain("from the file");
+  expect(names).not.toContain("also from the file");
+  expect(names).not.toContain("star tag");
+
+  // A collection added after import must survive. Stars and read state that
+  // disagree with the file are put back on the next import.
+  await page.request.post("/api/tags", {
+    data: { name: "Kept", articleIds: [readArticle.id] },
+  });
+  await page.request.patch(`/api/articles/${readArticle.id}`, {
+    data: { state: "unread", starred: true },
+  });
+  await page.request.patch(`/api/articles/${unreadArticle.id}`, {
+    data: { state: "archived" },
+  });
+  await page.request.patch(`/api/articles/${starredArticle.id}`, {
+    data: { starred: false },
+  });
+
+  // tags=import on the second pass must still not attach the file's tags.
+  const second = await page.request.post(
+    "/api/import/instapaper?tags=import",
+    { headers: { "content-type": "text/csv" }, data: csv },
+  );
+  expect(second.ok()).toBe(true);
+  const again = await second.json();
+  expect(again.articlesCreated).toBe(0);
+  expect(again.articlesUpdated).toBe(3);
+
+  const readAfter = (
+    await (await page.request.get("/api/articles?state=archived&limit=50")).json()
+  ).articles;
+  const unreadAfter = (
+    await (await page.request.get("/api/articles?state=unread&limit=50")).json()
+  ).articles;
+  const readAgain = readAfter.find(
+    (a: { title: string }) => a.title === "Assigned read",
+  );
+  const unreadAgain = unreadAfter.find(
+    (a: { title: string }) => a.title === "Assigned unread",
+  );
+  const starredAgain = unreadAfter.find(
+    (a: { title: string }) => a.title === "Assigned star",
+  );
+  expect(readAgain).toBeTruthy();
+  expect(readAgain.starred).toBe(false);
+  expect(unreadAgain).toBeTruthy();
+  expect(unreadAgain.starred).toBe(false);
+  expect(starredAgain).toBeTruthy();
+  expect(starredAgain.starred).toBe(true);
+  expect(readAfter.length + unreadAfter.length).toBe(3);
+
+  const { tags: tagsAfter } = await (await page.request.get("/api/tags")).json();
+  const afterNames = tagsAfter.map((t: { name: string }) => t.name);
+  expect(afterNames).toContain("Kept");
+  expect(afterNames).not.toContain("from the file");
+  expect(afterNames).not.toContain("also from the file");
+  expect(afterNames).not.toContain("star tag");
+
+  const kept = await (
+    await page.request.get("/api/tags/kept")
+  ).json();
+  expect(kept.articleIds).toContain(readArticle.id);
 });
 
 test("script tags in a backup are stripped, not stored", async () => {

@@ -111,11 +111,11 @@ export function SplitPanes({
   return (
     <ReaderLayoutProvider value={layout}>
       <div
-        className="lg:flex lg:h-screen"
+        className="lg:flex lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden"
         style={{ "--list-pane-width": `${width}px` } as React.CSSProperties}
       >
         <div
-          className={`lg:w-[var(--list-pane-width)] lg:shrink-0 lg:overflow-y-auto lg:bg-white ${
+          className={`lg:h-full lg:min-h-0 lg:w-[var(--list-pane-width)] lg:shrink-0 lg:overflow-y-auto lg:bg-white ${
             listHidden ? "lg:hidden" : ""
           }`}
         >
@@ -143,7 +143,7 @@ export function SplitPanes({
           }`}
         />
 
-        <div className="hidden min-w-0 flex-1 lg:block lg:h-full lg:overflow-y-auto">
+        <div className="hidden min-h-0 min-w-0 flex-1 lg:block lg:h-full lg:overflow-y-auto">
           {reader}
         </div>
       </div>

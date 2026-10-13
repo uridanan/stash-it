@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { autoTagsFor } from "@/lib/auto-tags";
 import type { InstapaperRow } from "@/lib/instapaper";
-import { mapFolder } from "@/lib/instapaper";
+import { mapFolder, readingStatePatch } from "@/lib/instapaper";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { htmlToText } from "@/lib/summarize";
 import { applyAutoTags } from "@/lib/tags";
@@ -161,6 +161,11 @@ export async function* exportRecords(
 export interface ImportSummary {
   articlesCreated: number;
   articlesSkipped: number;
+  /**
+   * Existing articles whose read/unread or star was rewritten.
+   * Instapaper re-import only. Backup restore leaves this at 0.
+   */
+  articlesUpdated: number;
   tagsCreated: number;
   settingsApplied: boolean;
   /** Article bodies matched back to their row from an archive. */
@@ -178,37 +183,59 @@ function parseDate(value: string | null): Date | null {
 /**
  * Applies records to an account.
  *
- * Existing URLs are left untouched rather than overwritten, which makes a
- * restore safe to re-run and stops a stale backup from clobbering newer
- * reading state. Tags are matched by name, so a restore rejoins the
- * collections already present instead of duplicating them.
+ * A backup restore leaves existing URLs untouched, which makes it safe to
+ * re-run and stops a stale backup from clobbering newer reading state.
+ * Instapaper sets `updateReadingState`: a URL already in the library is not
+ * duplicated and its collections are not changed, but read/unread and star
+ * are taken from the file. Both are written on every path, including when
+ * collections are re-derived instead of copied. Star is never derived.
+ *
+ * Tags are matched by name, so a restore rejoins the collections already
+ * present instead of duplicating them.
  */
 export class Importer {
   private readonly summary: ImportSummary = {
     articlesCreated: 0,
     articlesSkipped: 0,
+    articlesUpdated: 0,
     tagsCreated: 0,
     settingsApplied: false,
     bodiesAttached: 0,
     problems: [],
   };
 
-  /** url -> already in the account. Loaded once; kept current as we insert. */
-  private existingUrls = new Set<string>();
+  /**
+   * URLs already in the account, with the id and read state a re-import
+   * needs. Kept current when a status patch is queued.
+   */
+  private existingByUrl = new Map<
+    string,
+    { id: string; state: "UNREAD" | "ARCHIVED"; starred: boolean }
+  >();
+  /** URLs loaded or queued this run, so a repeated row is not inserted twice. */
+  private knownUrls = new Set<string>();
   /** lowercased tag name -> tag id */
   private tagIds = new Map<string, string>();
   private pending: {
     record: ArticleRecord;
+  }[] = [];
+  private pendingStatus: {
+    id: string;
+    state: "UNREAD" | "ARCHIVED";
+    starred: boolean;
+    /** Present only when read/unread changed. Absent leaves readAt alone. */
+    readAt?: Date | null;
   }[] = [];
 
   constructor(
     private readonly userId: string,
     /**
      * Absent for the NDJSON path, which has no options and always takes the
-     * file's collections.
+     * file's collections. `updateReadingState` is the Instapaper re-import.
      */
     private readonly options: {
       tags: "import" | "assign";
+      updateReadingState?: boolean;
     } = { tags: "import" },
   ) {}
 
@@ -323,14 +350,17 @@ export class Importer {
     const [urls, tags] = await Promise.all([
       prisma.article.findMany({
         where: { userId: this.userId },
-        select: { url: true },
+        select: { id: true, url: true, state: true, starred: true },
       }),
       prisma.tag.findMany({
         where: { userId: this.userId },
         select: { id: true, name: true },
       }),
     ]);
-    this.existingUrls = new Set(urls.map((u) => u.url));
+    this.existingByUrl = new Map(
+      urls.map((u) => [u.url, { id: u.id, state: u.state, starred: u.starred }]),
+    );
+    this.knownUrls = new Set(urls.map((u) => u.url));
     this.tagIds = new Map(tags.map((t) => [t.name.toLowerCase(), t.id]));
   }
 
@@ -409,17 +439,74 @@ export class Importer {
       this.note("article record with no url");
       return;
     }
-    if (this.existingUrls.has(record.url)) {
+    const existing = this.existingByUrl.get(record.url);
+    if (existing) {
+      await this.queueStatus(existing, record);
+      return;
+    }
+    if (this.knownUrls.has(record.url)) {
       this.summary.articlesSkipped += 1;
       return;
     }
-    this.existingUrls.add(record.url);
+    this.knownUrls.add(record.url);
     this.pending.push({ record });
     if (this.pending.length >= BATCH) await this.flush();
   }
 
+  /**
+   * Read/unread and star for a URL the library already has.
+   *
+   * Backup restore counts the row as skipped. Instapaper writes those two
+   * fields from the file and nothing else — title and collections stay put.
+   * Star is copied from the file, never derived.
+   */
+  private async queueStatus(
+    existing: { id: string; state: "UNREAD" | "ARCHIVED"; starred: boolean },
+    record: ArticleRecord,
+  ): Promise<void> {
+    if (!this.options.updateReadingState) {
+      this.summary.articlesSkipped += 1;
+      return;
+    }
+    const incoming = record.state === "ARCHIVED" ? "ARCHIVED" : "UNREAD";
+    const patch = readingStatePatch(existing, {
+      state: incoming,
+      readAt: parseDate(record.readAt),
+      starred: Boolean(record.starred),
+    });
+    if (!patch) {
+      this.summary.articlesSkipped += 1;
+      return;
+    }
+    existing.state = patch.state;
+    existing.starred = patch.starred;
+    this.pendingStatus.push({ id: existing.id, ...patch });
+    if (this.pendingStatus.length >= BATCH) await this.flushStatus();
+  }
+
+  /** Writes queued status patches. One statement per row, in batches. */
+  private async flushStatus(): Promise<void> {
+    if (this.pendingStatus.length === 0) return;
+    const batch = this.pendingStatus;
+    this.pendingStatus = [];
+    const results = await prisma.$transaction(
+      batch.map((row) =>
+        prisma.article.updateMany({
+          where: { id: row.id, userId: this.userId },
+          data: {
+            state: row.state,
+            starred: row.starred,
+            ...("readAt" in row ? { readAt: row.readAt } : {}),
+          },
+        }),
+      ),
+    );
+    this.summary.articlesUpdated += results.reduce((n, row) => n + row.count, 0);
+  }
+
   /** Writes the queued articles and their collection memberships. */
   async flush(): Promise<void> {
+    await this.flushStatus();
     if (this.pending.length === 0) return;
     const batch = this.pending;
     this.pending = [];
@@ -475,6 +562,9 @@ export class Importer {
     for (const { record } of batch) {
       const articleId = idByUrl.get(record.url);
       if (!articleId || !Array.isArray(record.tags)) continue;
+      // Assign re-derives collections from the article later. The file's
+      // tags are not copied. Reading state was already stored on the row.
+      if (this.options.tags !== "import") continue;
       for (const [index, ref] of record.tags.entries()) {
         const tagId = await this.ensureTag(ref.name, "CUSTOM");
         if (!tagId) continue;

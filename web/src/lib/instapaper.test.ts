@@ -6,6 +6,7 @@ import {
   parseCsv,
   parseInstapaperCsv,
   parseTags,
+  readingStatePatch,
 } from "@/lib/instapaper";
 
 describe("parseCsv", () => {
@@ -111,6 +112,58 @@ describe("mapFolder", () => {
       state: "UNREAD",
       starred: false,
     });
+  });
+});
+
+describe("readingStatePatch", () => {
+  const readAt = new Date("2026-01-02T00:00:00.000Z");
+
+  it("moves an unread article to read", () => {
+    expect(
+      readingStatePatch(
+        { state: "UNREAD", starred: false },
+        { state: "ARCHIVED", readAt, starred: false },
+      ),
+    ).toEqual({ state: "ARCHIVED", starred: false, readAt });
+  });
+
+  it("moves a read article back to unread and clears when it was read", () => {
+    expect(
+      readingStatePatch(
+        { state: "ARCHIVED", starred: false },
+        { state: "UNREAD", readAt, starred: false },
+      ),
+    ).toEqual({ state: "UNREAD", starred: false, readAt: null });
+  });
+
+  it("sets or clears the star without rewriting when the article was read", () => {
+    expect(
+      readingStatePatch(
+        { state: "ARCHIVED", starred: false },
+        { state: "ARCHIVED", readAt, starred: true },
+      ),
+    ).toEqual({ state: "ARCHIVED", starred: true });
+    expect(
+      readingStatePatch(
+        { state: "UNREAD", starred: true },
+        { state: "UNREAD", readAt: null, starred: false },
+      ),
+    ).toEqual({ state: "UNREAD", starred: false });
+  });
+
+  it("leaves an article that already matches the file alone", () => {
+    expect(
+      readingStatePatch(
+        { state: "ARCHIVED", starred: true },
+        { state: "ARCHIVED", readAt, starred: true },
+      ),
+    ).toBeNull();
+    expect(
+      readingStatePatch(
+        { state: "UNREAD", starred: false },
+        { state: "UNREAD", readAt: null, starred: false },
+      ),
+    ).toBeNull();
   });
 });
 

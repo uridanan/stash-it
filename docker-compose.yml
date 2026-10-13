@@ -1,7 +1,10 @@
 # Stash — local stack: PostgreSQL + the Next.js app.
 #
-#   docker compose up --build
-#   open http://localhost:3000  (AUTH_DEV_LOGIN is on — use the dev login)
+#   docker compose up --build --watch
+#   open http://localhost:8000  (AUTH_DEV_LOGIN is on — use the dev login)
+#
+# `--watch` rebuilds this image when ./web changes. The container runs the
+# production standalone server, so syncing source in would not hot-reload.
 #
 # Values below are throwaway local-dev credentials only. Production secrets
 # live in GCP Secret Manager (see cloudbuild.yaml + README).
@@ -56,6 +59,21 @@ services:
       timeout: 5s
       retries: 12
       start_period: 15s
+    develop:
+      watch:
+        # Rebuild the standalone image. A sync into /app would not change
+        # what `node server.js` is already running.
+        - action: rebuild
+          path: ./web
+          ignore:
+            - node_modules/
+            - .next/
+            - coverage/
+            - test-results/
+            - playwright-report/
+            - e2e/
+            - "**/*.test.ts"
+            - "**/*.test.tsx"
 
 volumes:
   db-data:
