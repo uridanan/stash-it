@@ -67,10 +67,15 @@ test("reader view renders extracted content with controls", async () => {
       .evaluate((el) => window.getComputedStyle(el).fontSize);
   const before = await bodySize();
   const titleBefore = await titleSize();
+  const articleUrl = page.url();
+  await page.goto("/settings?tab=appearance");
   await page.getByTestId("font-larger").click();
+  await page.goto(articleUrl);
   await expect.poll(bodySize).not.toBe(before);
   expect(await titleSize()).toBe(titleBefore);
+  await page.goto("/settings?tab=appearance");
   await page.getByTestId("font-smaller").click();
+  await page.goto(articleUrl);
   await expect.poll(bodySize).toBe(before);
   await expect(page.getByRole("link", { name: /view original/i })).toHaveAttribute(
     "href",
@@ -132,21 +137,26 @@ test("the text size is kept across articles and reloads", async () => {
       .evaluate((el) => window.getComputedStyle(el).fontSize);
 
   const start = await size();
+  const articleUrl = page.url();
+  const articleId = new URL(articleUrl).searchParams.get("article");
+  await page.goto("/settings?tab=appearance");
   await page.getByTestId("font-larger").click();
   await page.getByTestId("font-larger").click();
+  await page.goto(articleUrl);
   const bigger = await size();
   expect(bigger).not.toBe(start);
 
   // Same size on a reload, on the standalone page, and back on the list.
-  const articleId = new URL(page.url()).searchParams.get("article");
   await page.reload();
   await expect.poll(size).toBe(bigger);
   await page.goto(`/article/${articleId}`);
   await expect.poll(size).toBe(bigger);
 
   // Put it back so the rest of the suite sees the default.
+  await page.goto("/settings?tab=appearance");
   await page.getByTestId("font-smaller").click();
   await page.getByTestId("font-smaller").click();
+  await page.goto(`/article/${articleId}`);
   await expect.poll(size).toBe(start);
 });
 

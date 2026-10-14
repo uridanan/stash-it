@@ -1,11 +1,7 @@
 "use client";
 
 import { Menu, MenuLink } from "@/components/menu";
-import {
-  BookIcon,
-  DownloadIcon,
-  FileTextIcon,
-} from "@/components/icons";
+import { BookIcon, DownloadIcon, FileTextIcon } from "@/components/icons";
 
 /**
  * Download this article in one of the three formats the server can render.

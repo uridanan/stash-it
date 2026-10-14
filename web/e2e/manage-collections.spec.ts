@@ -205,10 +205,18 @@ test("several articles can be selected from a list and filed together", async ()
   const second = await save(page, SECOND_URL);
 
   await page.goto("/");
-  // No bar until something is ticked.
+  // No bar until something is ticked. The checkbox lives in the row overlay.
   await expect(page.getByTestId("selection-bar")).toHaveCount(0);
 
+  const firstRow = page
+    .getByTestId("article-row")
+    .filter({ has: page.getByTestId(`select-article-${first}`) });
+  await firstRow.hover();
   await page.getByTestId(`select-article-${first}`).check();
+  const secondRow = page
+    .getByTestId("article-row")
+    .filter({ has: page.getByTestId(`select-article-${second}`) });
+  await secondRow.hover();
   await page.getByTestId(`select-article-${second}`).check();
   await expect(page.getByTestId("selection-bar")).toContainText("2 selected");
 
@@ -217,20 +225,69 @@ test("several articles can be selected from a list and filed together", async ()
   await page.getByTestId("selection-new-collection").fill("Reading Pile");
   await page.getByTestId("selection-new-collection-save").click();
 
+  // The new collection stays in the menu, checked, so more can be chosen first.
+  const created = page.getByTestId("selection-add-reading-pile");
+  await expect(created).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("selection-add-to-collection-panel")).toBeVisible();
+  await page.getByTestId("selection-collections-save").click();
+
   await expect(page.getByTestId("selection-note")).toContainText("Added 2");
 
   const pile = await (await page.request.get("/api/tags/reading-pile")).json();
   // Filed in the order they were picked.
   expect(pile.articleIds).toEqual([first, second]);
+
+  // The collection is in the menu the next time it opens, without a reload.
+  for (const id of [first, second]) {
+    const row = page
+      .getByTestId("article-row")
+      .filter({ has: page.getByTestId(`select-article-${id}`) });
+    await row.hover();
+    await page.getByTestId(`select-article-${id}`).check();
+  }
+  await page.getByTestId("selection-add-to-collection").click();
+  const again = page.getByTestId("selection-add-reading-pile");
+  await expect(again).toBeVisible();
+  await expect(again).toHaveAttribute("aria-checked", "true");
+  await again.click();
+  await expect(again).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByTestId("selection-collections-save")).toBeEnabled();
+  await again.click();
+  await expect(page.getByTestId("selection-collections-save")).toBeDisabled();
+  await page.getByTestId("selection-clear").click();
 });
 
 test("filing a selection that overlaps says how many were already there", async () => {
   const ids = await articleIds(page);
+  const extra = await save(page, `${E2E_BASE_URL}/test-article.html?third=1`);
+  await page.request.post("/api/tags", { data: { name: "Empty Shelf" } });
   await page.goto("/");
-  await page.getByTestId(`select-article-${ids[0]}`).check();
+
+  for (const id of [ids[0], extra]) {
+    const row = page
+      .getByTestId("article-row")
+      .filter({ has: page.getByTestId(`select-article-${id}`) });
+    await row.hover();
+    await page.getByTestId(`select-article-${id}`).check();
+  }
 
   await page.getByTestId("selection-add-to-collection").click();
-  await page.getByTestId("selection-add-reading-pile").click();
+  const shelf = page.getByTestId("selection-add-empty-shelf");
+  const pile = page.getByTestId("selection-add-reading-pile");
+  // Not a member: an empty box. Already a member of some of the selection: mixed.
+  await expect(shelf).toHaveAttribute("aria-checked", "false");
+  await expect(pile).toHaveAttribute("aria-checked", "mixed");
+
+  // Ticking stays in the menu so more than one collection can be chosen.
+  await shelf.click();
+  await expect(shelf).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("selection-add-to-collection-panel")).toBeVisible();
+  await shelf.click();
+  await expect(shelf).toHaveAttribute("aria-checked", "false");
+
+  await pile.click();
+  await expect(pile).toHaveAttribute("aria-checked", "true");
+  await page.getByTestId("selection-collections-save").click();
 
   await expect(page.getByTestId("selection-note")).toContainText("already there");
 });

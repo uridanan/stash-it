@@ -5,6 +5,7 @@ import {
   getArticle,
   parseArticleState,
   toArticleDTO,
+  toArticleListItemDTO,
   updateArticle,
   type UpdateArticleInput,
 } from "@/lib/articles";
@@ -75,7 +76,7 @@ export async function PATCH(req: Request, ctx: RouteContext) {
   const { id } = await ctx.params;
   const article = await updateArticle(id, user.userId, input);
   if (!article) return jsonError("Article not found", 404);
-  return NextResponse.json({ article: toArticleDTO(article) });
+  return NextResponse.json({ article: toArticleListItemDTO(article) });
 }
 
 export async function DELETE(req: Request, ctx: RouteContext) {

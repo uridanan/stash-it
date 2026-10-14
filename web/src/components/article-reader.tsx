@@ -73,7 +73,6 @@ export async function ArticleReader({ article }: { article: ArticleRow }) {
         articleId={article.id}
         starred={article.starred}
         archived={archived}
-        aiConfigured={aiConfigured}
         kindleConfigured={kindleConfigured}
       >
         <header className="mt-8">

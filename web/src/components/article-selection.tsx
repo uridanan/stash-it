@@ -7,30 +7,63 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
+import { useListen } from "@/components/listen/listen-provider";
 import { Menu, MenuItem } from "@/components/menu";
 import { Toast } from "@/components/toast";
-import { CheckIcon, CloseIcon, SpinnerIcon } from "@/components/icons";
+import { uniqueSlug } from "@/lib/tag-order";
+import {
+  CheckIcon,
+  CloseIcon,
+  HeadphonesIcon,
+  MoreIcon,
+  RefreshIcon,
+  SparkleIcon,
+  SpinnerIcon,
+  StarIcon,
+  TagIcon,
+  TrashIcon,
+} from "@/components/icons";
 
 /**
- * Selecting several articles at once, so they can be filed together.
+ * Selecting several articles at once.
  *
- * The state is a context rather than props because the two halves live in
- * different places — a checkbox on every row, one action bar above the list —
- * and the lists are server components that would otherwise have to become
- * client components just to hold a Set.
- *
- * There is no selection *mode* to enter: the checkbox appears on hover (and
- * stays once anything is selected), which is one less thing to explain and one
- * less click before the first selection.
+ * On a desktop the checkbox sits in each row's action overlay, to the left of
+ * delete. Phones have no checkbox: a long press selects, and further taps
+ * toggle until the selection is cleared.
+ * Once anything is selected, the list's top controls become star, read, tag,
+ * listen (one article only), and an overflow menu.
  */
+
+export type SelectionTarget = {
+  id: string;
+  starred?: boolean;
+  archived: boolean;
+  /** Collection slugs this article is already in. */
+  tagSlugs?: string[];
+};
+
+export type ArticleFlags = { starred?: boolean; archived?: boolean };
 
 interface Selection {
   selected: ReadonlySet<string>;
+  /** Desktop select mode, or a phone selection that is still open. */
+  selecting: boolean;
   toggle: (id: string) => void;
+  /** Drop every pick and leave select mode. */
   clear: () => void;
+  setSelecting: (on: boolean) => void;
+  /**
+   * Star and read, applied on click. The list props catch up later, on
+   * refresh; until they match, these win so the row doesn't sit unchanged.
+   */
+  flags: Readonly<Record<string, ArticleFlags>>;
+  setFlags: (ids: readonly string[], patch: ArticleFlags) => void;
+  /** Drop the override once the server copy of the article agrees with it. */
+  settleFlag: (id: string) => void;
 }
 
 const SelectionContext = createContext<Selection | null>(null);
@@ -39,8 +72,16 @@ export function useSelection(): Selection | null {
   return useContext(SelectionContext);
 }
 
+const DESKTOP_QUERY = "(min-width: 1024px)";
+
+function isDesktop(): boolean {
+  return window.matchMedia(DESKTOP_QUERY).matches;
+}
+
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [selecting, setSelectingState] = useState(false);
+  const [flags, setFlagsState] = useState<Readonly<Record<string, ArticleFlags>>>({});
 
   const toggle = useCallback((id: string) => {
     setSelected((current) => {
@@ -50,11 +91,36 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const clear = useCallback(() => setSelected(new Set()), []);
+  const clear = useCallback(() => {
+    setSelected(new Set());
+    setSelectingState(false);
+  }, []);
+
+  const setSelecting = useCallback((on: boolean) => {
+    setSelectingState(on);
+    if (!on) setSelected(new Set());
+  }, []);
+
+  const setFlags = useCallback((ids: readonly string[], patch: ArticleFlags) => {
+    setFlagsState((current) => {
+      const next = { ...current };
+      for (const id of ids) next[id] = { ...current[id], ...patch };
+      return next;
+    });
+  }, []);
+
+  const settleFlag = useCallback((id: string) => {
+    setFlagsState((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }, []);
 
   const value = useMemo(
-    () => ({ selected, toggle, clear }),
-    [selected, toggle, clear],
+    () => ({ selected, selecting, toggle, clear, setSelecting, flags, setFlags, settleFlag }),
+    [selected, selecting, toggle, clear, setSelecting, flags, setFlags, settleFlag],
   );
 
   return (
@@ -64,19 +130,103 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The checkbox on a row. Renders nothing outside a SelectionProvider. */
-export function SelectCheckbox({ articleId }: { articleId: string }) {
+/**
+ * Long-press selection for phone-width lists.
+ *
+ * Spread `rowProps` on the row. Call `interceptOpen` from the title link's
+ * click so a completed long press does not navigate, and so a tap while a
+ * selection is open toggles instead of opening.
+ */
+export function useLongPressSelect(articleId: string) {
+  const selection = useSelection();
+  const suppressClick = useRef(false);
+
+  const onPointerDown = useCallback(
+    (event: React.PointerEvent) => {
+      if (!selection || event.button !== 0) return;
+      if (isDesktop()) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("button, input, a[target]")) return;
+
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const timer = window.setTimeout(() => {
+        suppressClick.current = true;
+        selection.setSelecting(true);
+        if (!selection.selected.has(articleId)) selection.toggle(articleId);
+      }, 450);
+
+      const cleanup = () => {
+        window.clearTimeout(timer);
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+      };
+      const onMove = (ev: PointerEvent) => {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 12) cleanup();
+      };
+      const onUp = () => {
+        cleanup();
+        if (suppressClick.current) {
+          window.setTimeout(() => {
+            suppressClick.current = false;
+          }, 0);
+        }
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    },
+    [articleId, selection],
+  );
+
+  const onContextMenu = useCallback((event: React.MouseEvent) => {
+    if (!isDesktop()) event.preventDefault();
+  }, []);
+
+  const interceptOpen = useCallback(
+    (event: React.MouseEvent) => {
+      if (suppressClick.current) {
+        suppressClick.current = false;
+        event.preventDefault();
+        return true;
+      }
+      if (!selection?.selecting || isDesktop()) return false;
+      event.preventDefault();
+      const only =
+        selection.selected.size === 1 && selection.selected.has(articleId);
+      selection.toggle(articleId);
+      if (only) selection.setSelecting(false);
+      return true;
+    },
+    [articleId, selection],
+  );
+
+  return {
+    rowProps: {
+      onPointerDown,
+      onContextMenu,
+      className: "max-lg:select-none max-lg:[-webkit-touch-callout:none]",
+    },
+    interceptOpen,
+  };
+}
+
+/** Desktop checkbox. Phones select with a long press, so this stays hidden there. */
+export function SelectCheckbox({
+  articleId,
+  className = "hidden h-8 w-8 shrink-0 items-center justify-center lg:flex",
+}: {
+  articleId: string;
+  className?: string;
+}) {
   const selection = useSelection();
   if (!selection) return null;
   const checked = selection.selected.has(articleId);
 
   return (
-    // A plain native checkbox, tinted with accent-color. The earlier version
-    // hid the real input behind a styled box and a drawn tick, which left the
-    // only clickable thing a 1px screen-reader-only input with decoration on
-    // top of it — pointer clicks landed on the decoration, not the control.
     <label
-      className="flex h-12 w-12 shrink-0 items-center justify-center"
+      className={className}
       onClick={(event) => event.stopPropagation()}
     >
       <input
@@ -86,35 +236,306 @@ export function SelectCheckbox({ articleId }: { articleId: string }) {
         onClick={(event) => event.stopPropagation()}
         aria-label={checked ? "Deselect article" : "Select article"}
         data-testid={`select-article-${articleId}`}
-        className="h-6 w-6 cursor-pointer accent-violet-600"
+        className="h-4 w-4 cursor-pointer accent-violet-600"
       />
     </label>
   );
 }
 
+const actionButton =
+  "flex h-12 w-11 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40";
+
+type Membership = "on" | "off" | "mixed";
+
+function membershipOf(
+  slug: string,
+  articles: { tagSlugs?: string[] }[],
+): Membership {
+  if (articles.length === 0) return "off";
+  const hits = articles.filter((article) => article.tagSlugs?.includes(slug)).length;
+  if (hits === 0) return "off";
+  if (hits === articles.length) return "on";
+  return "mixed";
+}
+
+function filingNote(
+  names: string[],
+  addedByName: { name: string; added: number }[],
+  articleCount: number,
+): string {
+  if (names.length === 1) {
+    const added = addedByName[0]?.added ?? 0;
+    const name = addedByName[0]?.name ?? names[0];
+    return added === articleCount
+      ? `Added ${added} to “${name}”`
+      : `Added ${added} to “${name}” — ${articleCount - added} already there`;
+  }
+  const labels = addedByName.map((row) => `“${row.name}”`).join(", ");
+  const already = addedByName.reduce((sum, row) => sum + (articleCount - row.added), 0);
+  return already === 0
+    ? `Added ${articleCount} to ${labels}`
+    : `Added to ${labels} — some were already there`;
+}
+
+/** Empty until chosen. A filled check means the articles are in that collection. */
+function CollectionMark({ state }: { state: Membership }) {
+  const filled = state !== "off";
+  return (
+    <span
+      aria-hidden
+      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+        filled ? "border-violet-600 bg-violet-600 text-white" : "border-slate-300 bg-white"
+      }`}
+    >
+      {state === "on" ? (
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="3">
+          <path d="M5 12.5l4.5 4.5L19 7" />
+        </svg>
+      ) : state === "mixed" ? (
+        <span className="block h-0.5 w-2.5 rounded-full bg-white" />
+      ) : null}
+    </span>
+  );
+}
+
+const collectionRow =
+  "flex min-h-12 w-full items-center gap-3 px-4 py-3 text-left text-base text-slate-800 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40";
+
+type CollectionOption = { id?: string; name: string; slug: string };
+
+type CollectionChange = CollectionOption & { action: "add" | "remove" };
+
 /**
- * The bar that appears once something is selected.
+ * Checklist of collections. Nothing is filed until Apply.
  *
- * "Add to collection" offers the collections that exist and a field for a new
- * one, and does not care which it is: the server resolves a collection by name
- * case-insensitively, so typing the name of one that already exists adds to it
- * rather than making a near-duplicate.
+ * A new name is inserted into this list, already checked, so more collections
+ * can be ticked before applying. Checking adds; unchecking removes. Apply
+ * stays available for either change.
  */
-export function SelectionBar() {
-  const selection = useSelection();
-  const router = useRouter();
-  const [tags, setTags] = useState<{ name: string; slug: string }[] | null>(null);
-  const [creating, setCreating] = useState(false);
+function CollectionPicker({
+  tags,
+  chosen,
+  busy,
+  onApply,
+  onReload,
+}: {
+  tags: CollectionOption[] | null;
+  chosen: { tagSlugs?: string[] }[];
+  busy: boolean;
+  onApply: (changes: CollectionChange[]) => void;
+  onReload: () => void;
+}) {
+  const [extras, setExtras] = useState<CollectionOption[]>([]);
+  const [overrides, setOverrides] = useState<ReadonlyMap<string, "on" | "off">>(
+    () => new Map(),
+  );
+  const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    onReload();
+  }, [onReload]);
+
+  const listed = useMemo(() => {
+    const seen = new Set(extras.map((tag) => tag.slug));
+    const rest = (tags ?? []).filter((tag) => {
+      if (seen.has(tag.slug)) return false;
+      return !extras.some((extra) => extra.name.toLowerCase() === tag.name.toLowerCase());
+    });
+    return [...extras, ...rest];
+  }, [extras, tags]);
+
+  function shownFor(tag: CollectionOption): Membership {
+    const override = overrides.get(tag.slug);
+    if (override) return override;
+    return membershipOf(tag.slug, chosen);
+  }
+
+  function toggle(tag: CollectionOption) {
+    const membership = membershipOf(tag.slug, chosen);
+    setOverrides((current) => {
+      const next = new Map(current);
+      const shown = next.get(tag.slug) ?? (membership === "mixed" ? "mixed" : membership);
+      const desired = shown === "on" ? "off" : "on";
+      const back =
+        membership !== "mixed" && (desired === "on" ? membership === "on" : membership === "off");
+      if (back) next.delete(tag.slug);
+      else next.set(tag.slug, desired);
+      return next;
+    });
+  }
+
+  function commitDraft() {
+    const name = draft.trim();
+    if (!name) return;
+    const existing = listed.find((tag) => tag.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      setOverrides((current) => new Map(current).set(existing.slug, "on"));
+    } else {
+      const slug = uniqueSlug(
+        name,
+        listed.map((tag) => tag.slug),
+      );
+      setExtras((current) => [...current, { name, slug }]);
+      setOverrides((current) => new Map(current).set(slug, "on"));
+    }
+    setDraft("");
+    setComposing(false);
+  }
+
+  const changes: CollectionChange[] = [];
+  for (const tag of listed) {
+    const membership = membershipOf(tag.slug, chosen);
+    const desired = shownFor(tag);
+    if (desired === "on" && membership !== "on") changes.push({ ...tag, action: "add" });
+    else if (desired === "off" && membership !== "off") changes.push({ ...tag, action: "remove" });
+  }
+
+  return (
+    <>
+      {composing ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            commitDraft();
+          }}
+          className="flex items-center gap-2 px-3 py-2"
+        >
+          <input
+            autoFocus
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="New collection name"
+            maxLength={60}
+            aria-label="New collection name"
+            data-testid="selection-new-collection"
+            className="min-h-12 min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-base outline-none focus:border-violet-600"
+          />
+          <button
+            type="submit"
+            disabled={!draft.trim()}
+            data-testid="selection-new-collection-save"
+            className="min-h-12 shrink-0 rounded-lg bg-violet-600 px-3 py-2 text-base font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
+          >
+            Add
+          </button>
+        </form>
+      ) : (
+        <button
+          type="button"
+          role="menuitem"
+          data-testid="selection-add-new"
+          onClick={() => setComposing(true)}
+          className={collectionRow}
+        >
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center text-lg leading-none text-slate-400">
+            +
+          </span>
+          New collection…
+        </button>
+      )}
+      {tags === null && extras.length === 0 ? (
+        <p className="px-4 py-2 text-sm text-slate-400">Loading…</p>
+      ) : listed.length === 0 ? (
+        <p className="px-4 py-2 text-sm text-slate-400">No collections yet</p>
+      ) : (
+        <div className="max-h-64 overflow-y-auto">
+          {listed.map((tag) => {
+            const shown = shownFor(tag);
+            return (
+              <button
+                key={tag.slug}
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={shown === "on" ? "true" : shown === "mixed" ? "mixed" : "false"}
+                data-testid={`selection-add-${tag.slug}`}
+                onClick={() => toggle(tag)}
+                className={collectionRow}
+              >
+                <CollectionMark state={shown} />
+                {tag.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="border-t border-slate-100 p-2">
+        <button
+          type="button"
+          disabled={busy || changes.length === 0}
+          data-testid="selection-collections-save"
+          onClick={() => onApply(changes)}
+          className="min-h-12 w-full rounded-lg bg-violet-600 px-4 py-2 text-base font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
+        >
+          Apply
+        </button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Replaces the sort / select controls once something is picked.
+ *
+ * `articles` is whatever the list currently knows, so star and read can aim
+ * at the state the selection is actually in.
+ */
+export function SelectionToolbar({
+  articles,
+  children,
+}: {
+  articles: SelectionTarget[];
+  children: React.ReactNode;
+}) {
+  return <SelectionActions articles={articles}>{children}</SelectionActions>;
+}
+
+function SelectionActions({
+  articles,
+  children,
+}: {
+  articles: SelectionTarget[];
+  children: React.ReactNode;
+}) {
+  const selection = useSelection();
+  const listen = useListen();
+  const router = useRouter();
+  const [tags, setTags] = useState<CollectionOption[] | null>(null);
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Applies land before the list is refreshed, so the next time the menu opens
+  // it still knows which collections this session just added or removed.
+  const [tagEdits, setTagEdits] = useState<{
+    added: Record<string, string[]>;
+    removed: Record<string, string[]>;
+  }>({ added: {}, removed: {} });
 
   const count = selection?.selected.size ?? 0;
+  const ids = useMemo(
+    () => (selection ? [...selection.selected] : []),
+    [selection],
+  );
+  const chosen = ids.map((id) => {
+    const article = articles.find((item) => item.id === id) ?? {
+      id,
+      archived: false,
+    };
+    const slugs = new Set(article.tagSlugs ?? []);
+    for (const slug of tagEdits.added[id] ?? []) slugs.add(slug);
+    for (const slug of tagEdits.removed[id] ?? []) slugs.delete(slug);
+    const flag = selection?.flags[id];
+    return {
+      ...article,
+      starred: flag?.starred ?? article.starred,
+      archived: flag?.archived ?? article.archived,
+      tagSlugs: [...slugs],
+    };
+  });
+  const allStarred = chosen.length > 0 && chosen.every((article) => article.starred);
+  const allRead = chosen.length > 0 && chosen.every((article) => article.archived);
 
-  // The confirmation is transient for the same reason the reader's is: it
-  // reports something already finished, and once the selection has been
-  // cleared the note is the only thing keeping the bar on screen.
   useEffect(() => {
     if (!note && !error) return;
     const timer = setTimeout(
@@ -127,180 +548,385 @@ export function SelectionBar() {
     return () => clearTimeout(timer);
   }, [note, error]);
 
-  // Fetched the first time the bar appears, not on every list render: the
-  // collections are only needed once something is selected.
+  const tagsFetch = useRef(0);
+
+  const reloadTags = useCallback(async () => {
+    const token = ++tagsFetch.current;
+    try {
+      const res = await fetch("/api/tags");
+      if (tagsFetch.current !== token) return;
+      if (!res.ok) {
+        setTags((current) => current ?? []);
+        return;
+      }
+      const body = await res.json();
+      if (tagsFetch.current !== token) return;
+      setTags(
+        (body.tags ?? []).map((tag: { id: string; name: string; slug: string }) => ({
+          id: tag.id,
+          name: tag.name,
+          slug: tag.slug,
+        })),
+      );
+    } catch {
+      if (tagsFetch.current === token) setTags((current) => current ?? []);
+    }
+  }, []);
+
   useEffect(() => {
-    if (count === 0 || tags !== null) return;
+    if (!selection) return;
+    for (const article of articles) {
+      const flag = selection.flags[article.id];
+      if (!flag) continue;
+      const starOk = flag.starred === undefined || flag.starred === Boolean(article.starred);
+      const readOk = flag.archived === undefined || flag.archived === article.archived;
+      if (starOk && readOk) selection.settleFlag(article.id);
+    }
+  }, [articles, selection]);
+
+  useEffect(() => {
+    if (count === 0) return;
     let cancelled = false;
+    void reloadTags();
     (async () => {
       try {
-        const res = await fetch("/api/tags");
-        if (!res.ok) return;
-        const body = await res.json();
-        if (cancelled) return;
-        setTags(
-          (body.tags ?? []).map((tag: { name: string; slug: string }) => ({
-            name: tag.name,
-            slug: tag.slug,
-          })),
-        );
+        const res = await fetch("/api/settings");
+        if (cancelled || !res.ok) return;
+        const settings = await res.json();
+        setAiConfigured(Boolean(settings.aiSummariesEnabled && settings.hasApiKey));
       } catch {
-        // Leave the list empty; the "new collection" field still works.
+        // Summarize simply stays hidden when settings can't be read.
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [count, tags]);
+  }, [count, reloadTags]);
 
-  if (!selection) return null;
+  if (!selection) {
+    return <div className="flex items-center gap-2">{children}</div>;
+  }
 
-  async function addTo(name: string) {
-    if (!selection || !name.trim() || busy) return;
-    setBusy(true);
+  async function patchEach(body: { starred?: boolean; state?: "unread" | "archived" }) {
+    if (!selection || busy) return;
+    const previous = chosen.map((article) => ({
+      id: article.id,
+      starred: Boolean(article.starred),
+      archived: article.archived,
+    }));
+    // Paint star and read before the request. The page refresh that follows
+    // is what used to be the only update, and it waits on the whole library.
+    selection.setFlags(ids, {
+      ...(body.starred !== undefined ? { starred: body.starred } : {}),
+      ...(body.state !== undefined ? { archived: body.state === "archived" } : {}),
+    });
+    setBusy("patch");
     setError(null);
-    setNote(null);
     try {
-      const res = await fetch("/api/tags", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          articleIds: [...selection.selected],
-        }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(body?.error ?? `That failed (HTTP ${res.status})`);
+      const results = await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/articles/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }),
+        ),
+      );
+      if (results.some((res) => !res.ok)) {
+        for (const article of previous) {
+          selection.setFlags([article.id], {
+            starred: article.starred,
+            archived: article.archived,
+          });
+        }
+        setError("Some of those failed — try again");
         return;
       }
-      const added = Number(body?.added ?? 0);
-      setNote(
-        added === count
-          ? `Added ${added} to “${body?.tag?.name ?? name}”`
-          : `Added ${added} to “${body?.tag?.name ?? name}” — ${
-              count - added
-            } already there`,
+      router.refresh();
+    } catch {
+      for (const article of previous) {
+        selection.setFlags([article.id], {
+          starred: article.starred,
+          archived: article.archived,
+        });
+      }
+      setError("Network error — try again");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runEach(path: (id: string) => string, kind: string) {
+    if (!selection || busy) return;
+    if (kind === "delete") {
+      const label = ids.length === 1 ? "this article" : `these ${ids.length} articles`;
+      if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+    }
+    setBusy(kind);
+    setError(null);
+    try {
+      const results = await Promise.all(ids.map((id) => fetch(path(id), { method: kind === "delete" ? "DELETE" : "POST" })));
+      const failed = results.find((res) => !res.ok);
+      if (failed) {
+        const body = await failed.json().catch(() => null);
+        setError(body?.error ?? "Some of those failed — try again");
+        return;
+      }
+      if (kind === "delete") selection.clear();
+      router.refresh();
+    } catch {
+      setError("Network error — try again");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function rememberTags(incoming: CollectionOption[]) {
+    tagsFetch.current += 1;
+    setTags((current) => {
+      const map = new Map((current ?? []).map((tag) => [tag.slug, tag]));
+      for (const tag of incoming) map.set(tag.slug, tag);
+      return [...map.values()];
+    });
+  }
+
+  async function applyCollections(changes: CollectionChange[]) {
+    if (!selection || changes.length === 0 || busy) return;
+    setBusy("tag");
+    setError(null);
+    setNote(null);
+    const adds = changes.filter((change) => change.action === "add");
+    const removes = changes.filter((change) => change.action === "remove" && change.id);
+    try {
+      const added = await Promise.all(
+        adds.map(async (change) => {
+          const res = await fetch("/api/tags", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: change.name, articleIds: ids }),
+          });
+          const body = await res.json().catch(() => null);
+          return {
+            ok: res.ok,
+            status: res.status,
+            id: body?.tag?.id as string | undefined,
+            name: (body?.tag?.name as string | undefined) ?? change.name,
+            slug: (body?.tag?.slug as string | undefined) ?? change.slug,
+            added: Number(body?.added ?? 0),
+            error: body?.error as string | undefined,
+          };
+        }),
       );
-      setCreating(false);
-      setDraft("");
+      const removed = await Promise.all(
+        removes.map(async (change) => {
+          const results = await Promise.all(
+            ids.map((id) =>
+              fetch(`/api/articles/${id}/tags?tagId=${encodeURIComponent(change.id!)}`, {
+                method: "DELETE",
+              }),
+            ),
+          );
+          const failed = results.find((res) => !res.ok);
+          return { ok: !failed, name: change.name, status: failed?.status };
+        }),
+      );
+      const failedAdd = added.find((result) => !result.ok);
+      const failedRemove = removed.find((result) => !result.ok);
+      if (failedAdd || failedRemove) {
+        setError(
+          failedAdd?.error ??
+            `That failed (HTTP ${failedAdd?.status ?? failedRemove?.status})`,
+        );
+        return;
+      }
+      if (added.length > 0) {
+        rememberTags(
+          added.map((result) => ({
+            id: result.id,
+            name: result.name,
+            slug: result.slug,
+          })),
+        );
+      }
+      setTagEdits((current) => {
+        const nextAdded = { ...current.added };
+        const nextRemoved = { ...current.removed };
+        for (const id of ids) {
+          const addSlugs = new Set(nextAdded[id] ?? []);
+          const removeSlugs = new Set(nextRemoved[id] ?? []);
+          for (const result of added) {
+            addSlugs.add(result.slug);
+            removeSlugs.delete(result.slug);
+          }
+          for (const change of removes) {
+            removeSlugs.add(change.slug);
+            addSlugs.delete(change.slug);
+          }
+          nextAdded[id] = [...addSlugs];
+          nextRemoved[id] = [...removeSlugs];
+        }
+        return { added: nextAdded, removed: nextRemoved };
+      });
+      setNote(
+        removes.length === 0
+          ? filingNote(
+              added.map((result) => result.name),
+              added,
+              count,
+            )
+          : added.length === 0
+            ? removes.length === 1
+              ? `Removed from “${removes[0].name}”`
+              : `Removed from ${removes.length} collections`
+            : `Updated ${added.length + removes.length} collections`,
+      );
       selection.clear();
       router.refresh();
     } catch {
       setError("Network error — try again");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
   return (
-    <>
-      {count > 0 && (
-    <div
-      data-testid="selection-bar"
-      className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2"
-    >
-      <span className="text-sm font-medium text-violet-900">
-        {count} selected
-      </span>
+    <div className="relative z-30 ml-auto flex min-w-0 items-center">
+      {count === 0 ? (
+        <div className="flex items-center gap-2">{children}</div>
+      ) : (
+      <div
+        data-testid="selection-bar"
+        className="flex flex-nowrap items-center gap-0.5"
+      >
+        <span className="mr-1 whitespace-nowrap text-sm font-medium text-slate-700">
+          {count} selected
+        </span>
 
-      <div className="ml-auto flex items-center gap-2">
-        {creating ? (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void addTo(draft);
-            }}
-            className="flex items-center gap-2"
-          >
-            <input
-              autoFocus
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="New collection name"
-              maxLength={60}
-              aria-label="New collection name"
-              data-testid="selection-new-collection"
-              className="min-h-12 rounded-lg border border-slate-200 px-3 py-2 text-base outline-none focus:border-violet-600"
-            />
             <button
-              type="submit"
-              disabled={busy || !draft.trim()}
-              data-testid="selection-new-collection-save"
-              className="min-h-12 rounded-lg bg-violet-600 px-4 py-2 text-base font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void patchEach({ starred: !allStarred })}
+              title={allStarred ? "Unstar" : "Star"}
+              aria-label={allStarred ? "Unstar" : "Star"}
+              aria-pressed={allStarred}
+              data-testid="selection-star"
+              className={`${actionButton} ${allStarred ? "text-cyan-600" : ""}`}
             >
-              Add
+              <StarIcon filled={allStarred} />
             </button>
             <button
               type="button"
-              onClick={() => setCreating(false)}
-              className="min-h-12 rounded-lg px-4 py-2 text-base text-violet-800 transition-colors hover:bg-violet-100"
+              disabled={busy !== null}
+              onClick={() =>
+                void patchEach({ state: allRead ? "unread" : "archived" })
+              }
+              title={allRead ? "Mark as unread" : "Mark as read"}
+              aria-label={allRead ? "Mark as unread" : "Mark as read"}
+              aria-pressed={allRead}
+              data-testid="selection-read"
+              className={`${actionButton} ${allRead ? "text-violet-600" : ""}`}
             >
-              Cancel
+              <CheckIcon />
             </button>
-          </form>
-        ) : (
-          <Menu
-            label="Add to collection"
-            testId="selection-add-to-collection"
-            className="flex min-h-12 items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-base font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
-            disabled={busy}
-            icon={
-              <>
-                {busy ? <SpinnerIcon className="h-3.5 w-3.5" /> : null}
-                <span>Add to collection</span>
-              </>
-            }
-          >
-            {(close) => (
-              <>
-                <MenuItem
-                  icon={<CheckIcon />}
-                  label="New collection…"
-                  testId="selection-add-new"
-                  onSelect={() => {
+            <Menu
+              label="Add to collection"
+              testId="selection-add-to-collection"
+              disabled={busy !== null}
+              className={actionButton}
+              icon={busy === "tag" ? <SpinnerIcon /> : <TagIcon />}
+            >
+              {(close) => (
+                <CollectionPicker
+                  tags={tags}
+                  chosen={chosen}
+                  busy={busy !== null}
+                  onReload={reloadTags}
+                  onApply={(changes) => {
                     close();
-                    setCreating(true);
+                    void applyCollections(changes);
                   }}
                 />
-                {tags === null ? (
-                  <p className="px-3 py-1.5 text-sm text-slate-400">Loading…</p>
-                ) : tags.length === 0 ? (
-                  <p className="px-3 py-1.5 text-sm text-slate-400">
-                    No collections yet
-                  </p>
+              )}
+            </Menu>
+            {count === 1 && listen.supported ? (
+              <button
+                type="button"
+                disabled={!listen.ready || busy !== null}
+                onClick={() => listen.listenTo(ids[0])}
+                title={
+                  listen.ready
+                    ? "Listen to this article"
+                    : "No text-to-speech voices are installed on this device"
+                }
+                aria-label="Listen to this article"
+                data-testid="selection-listen"
+                className={actionButton}
+              >
+                <HeadphonesIcon />
+              </button>
+            ) : null}
+            <Menu
+              label="More actions"
+              testId="selection-more"
+              disabled={busy !== null}
+              className={actionButton}
+              icon={
+                busy === "fetch" || busy === "summarize" || busy === "delete" ? (
+                  <SpinnerIcon />
                 ) : (
-                  tags.map((tag) => (
+                  <MoreIcon />
+                )
+              }
+            >
+              {(close) => (
+                <>
+                  <MenuItem
+                    icon={<RefreshIcon />}
+                    label="Fetch"
+                    testId="selection-fetch"
+                    disabled={busy !== null}
+                    onSelect={() => {
+                      close();
+                      void runEach((id) => `/api/articles/${id}/extract?force=1`, "fetch");
+                    }}
+                  />
+                  {aiConfigured ? (
                     <MenuItem
-                      key={tag.slug}
-                      icon={<CheckIcon />}
-                      label={tag.name}
-                      testId={`selection-add-${tag.slug}`}
+                      icon={<SparkleIcon />}
+                      label="Summarize"
+                      testId="selection-summarize"
+                      disabled={busy !== null}
                       onSelect={() => {
                         close();
-                        void addTo(tag.name);
+                        void runEach((id) => `/api/articles/${id}/summary`, "summarize");
                       }}
                     />
-                  ))
-                )}
-              </>
-            )}
-          </Menu>
-        )}
-
-        <button
-          type="button"
-          onClick={selection.clear}
-          title="Clear selection"
-          aria-label="Clear selection"
-          data-testid="selection-clear"
-          className="flex h-12 w-12 items-center justify-center rounded-lg text-violet-800 transition-colors hover:bg-violet-100"
-        >
-          <CloseIcon />
-        </button>
+                  ) : null}
+                  <MenuItem
+                    icon={<TrashIcon />}
+                    label="Delete"
+                    danger
+                    testId="selection-delete"
+                    disabled={busy !== null}
+                    onSelect={() => {
+                      close();
+                      void runEach((id) => `/api/articles/${id}`, "delete");
+                    }}
+                  />
+                </>
+              )}
+            </Menu>
+            <button
+              type="button"
+              onClick={selection.clear}
+              title="Clear selection"
+              aria-label="Clear selection"
+              data-testid="selection-clear"
+              className={actionButton}
+            >
+              <CloseIcon />
+            </button>
       </div>
-
-    </div>
       )}
 
       {error ? (
@@ -317,6 +943,6 @@ export function SelectionBar() {
           onDismiss={() => setNote(null)}
         />
       ) : null}
-    </>
+    </div>
   );
 }

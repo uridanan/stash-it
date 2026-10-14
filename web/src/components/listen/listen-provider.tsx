@@ -44,6 +44,8 @@ export { RATES } from "@/lib/tts/rate";
 const VOICE_KEY = "stash:tts-voice";
 const RATE_KEY = "stash:tts-rate";
 const QUEUE_KEY = "stash:listen-queue";
+/** One article to start after navigation, when it isn't part of a playlist. */
+const LISTEN_NOW_KEY = "stash:listen-now";
 const REWIND_SECONDS = 10;
 
 export type ReaderTab = "summary" | "article";
@@ -98,6 +100,8 @@ export interface ListenContextValue {
   previous(): void;
   /** Begin a playlist. Navigates to its first article and starts there. */
   playQueue(tagSlug: string, tagName: string, articleIds: string[]): void;
+  /** Open one article and start reading it aloud. */
+  listenTo(articleId: string): void;
   registerRoot(meta: ListenRootMeta): void;
   unregisterRoot(articleId: string): void;
 }
@@ -141,6 +145,8 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
    * navigated away", which must stop playback.
    */
   const advancingRef = useRef(false);
+  /** Article id that should start once its reader has registered. */
+  const pendingListenRef = useRef<string | null>(null);
 
   const [root, setRoot] = useState<ListenRootMeta | null>(null);
   const [supported, setSupported] = useState(false);
@@ -178,15 +184,25 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
     setVoiceId(readStored(VOICE_KEY, (raw) => raw));
 
     try {
-      const raw = window.sessionStorage.getItem(QUEUE_KEY);
-      if (raw) {
-        const restored = JSON.parse(raw) as ListenQueue;
-        setQueue(restored);
-        // Mid-playlist: pick up where the previous page left off as soon as
-        // the article registers itself.
-        if (restored.autoplay) {
-          setStatus("playing");
-          setAutoStart(true);
+      const pending = window.sessionStorage.getItem(LISTEN_NOW_KEY);
+      if (pending) {
+        pendingListenRef.current = pending;
+        window.sessionStorage.removeItem(LISTEN_NOW_KEY);
+        window.sessionStorage.removeItem(QUEUE_KEY);
+        setQueue(null);
+        setStatus("playing");
+        setAutoStart(true);
+      } else {
+        const raw = window.sessionStorage.getItem(QUEUE_KEY);
+        if (raw) {
+          const restored = JSON.parse(raw) as ListenQueue;
+          setQueue(restored);
+          // Mid-playlist: pick up where the previous page left off as soon as
+          // the article registers itself.
+          if (restored.autoplay) {
+            setStatus("playing");
+            setAutoStart(true);
+          }
         }
       }
     } catch {
@@ -452,7 +468,12 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
   // Auto-start once the next article's content has registered itself.
   useEffect(() => {
     if (!autoStart || !root) return;
-    if (queue && queue.articleIds[queue.index] !== root.articleId) {
+    const pending = pendingListenRef.current;
+    if (pending && pending !== root.articleId) {
+      // Navigation hasn't landed on the article that was asked for yet.
+      return;
+    }
+    if (!pending && queue && queue.articleIds[queue.index] !== root.articleId) {
       // Mid-advance the old article is still the registered one, because
       // router.push has not landed yet. Keep waiting for the right one.
       if (advancingRef.current) return;
@@ -462,6 +483,12 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
       saveQueue(null);
       setStatus("idle");
       return;
+    }
+    pendingListenRef.current = null;
+    try {
+      window.sessionStorage.removeItem(LISTEN_NOW_KEY);
+    } catch {
+      // Best effort only.
     }
     setAutoStart(false);
     advancingRef.current = false;
@@ -562,6 +589,7 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
     (tagSlug: string, tagName: string, articleIds: string[]) => {
       if (articleIds.length === 0) return;
       advancingRef.current = true;
+      pendingListenRef.current = null;
       engineRef.current?.stop();
       saveQueue({ tagSlug, tagName, articleIds, index: 0, autoplay: true });
       setStatus("playing");
@@ -569,6 +597,35 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
       router.push(queueHref(tagSlug, articleIds[0]));
     },
     [queueHref, router, saveQueue],
+  );
+
+  const listenTo = useCallback(
+    (articleId: string) => {
+      if (root?.articleId === articleId) {
+        start();
+        return;
+      }
+      pendingListenRef.current = articleId;
+      try {
+        window.sessionStorage.setItem(LISTEN_NOW_KEY, articleId);
+      } catch {
+        // The in-memory ref still covers a navigation that doesn't remount.
+      }
+      saveQueue(null);
+      engineRef.current?.stop();
+      setStatus("playing");
+      setAutoStart(true);
+      const splitView = window.matchMedia("(min-width: 1024px)").matches;
+      if (splitView) {
+        const params = new URLSearchParams(window.location.search);
+        params.set("article", articleId);
+        const qs = params.toString();
+        router.push(qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+        return;
+      }
+      router.push(`/article/${encodeURIComponent(articleId)}`);
+    },
+    [root, router, saveQueue, start],
   );
 
   const next = useCallback(() => {
@@ -644,6 +701,7 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
       next,
       previous,
       playQueue,
+      listenTo,
       registerRoot,
       unregisterRoot,
     }),
@@ -652,6 +710,7 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
       error,
       next,
       notice,
+      listenTo,
       pause,
       playQueue,
       previous,

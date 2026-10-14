@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
-import { SelectCheckbox, useSelection } from "@/components/article-selection";
+import { SelectCheckbox, useLongPressSelect, useSelection } from "@/components/article-selection";
+import { TrashIcon } from "@/components/icons";
 import { TagChips } from "@/components/tag-chips";
 import type { ArticleTagDTO } from "@/types";
 
@@ -26,12 +27,15 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [busy, setBusy] = useState(false);
-  const archived = article.state === "ARCHIVED";
   const selected = searchParams.get("article") === article.id;
   // Present only inside a SelectionProvider — the lists that support picking
   // several articles at once.
   const selection = useSelection();
+  const flag = selection?.flags[article.id];
+  const starred = flag?.starred ?? article.starred;
+  const archived = flag?.archived ?? article.state === "ARCHIVED";
   const picked = selection?.selected.has(article.id) ?? false;
+  const press = useLongPressSelect(article.id);
 
   /**
    * Desktop split view (lg+): select into the reader pane instead of
@@ -39,6 +43,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
    * Modified clicks (new tab etc.) are left to the browser.
    */
   function handleOpen(e: React.MouseEvent) {
+    if (press.interceptOpen(e)) return;
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     if (!window.matchMedia("(min-width: 1024px)").matches) return;
     e.preventDefault();
@@ -82,23 +87,14 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
   return (
     <li
       data-testid="article-row"
-      className={`group relative border-b border-slate-200 py-4 last:border-b-0 ${
+      onPointerDown={press.rowProps.onPointerDown}
+      onContextMenu={press.rowProps.onContextMenu}
+      className={`group relative border-b border-slate-200 py-4 last:border-b-0 ${press.rowProps.className} ${
         selected ? "lg:-mx-3 lg:rounded-lg lg:border-transparent lg:bg-violet-50 lg:px-3" : ""
       } ${picked ? "bg-violet-50/60" : ""}`}
     >
-      <div className="flex gap-3 pr-2">
-        {selection && (
-          <div
-            className={`transition-opacity ${
-              picked
-                ? ""
-                : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-            }`}
-          >
-            <SelectCheckbox articleId={article.id} />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
+      <div className="pr-2">
+        <div className="min-w-0">
         <Link
           href={`/article/${article.id}`}
           onClick={handleOpen}
@@ -124,7 +120,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
           )}
           <span>{article.readingMinutes} min read</span>
           <span> · {article.savedAtLabel}</span>
-          {article.starred && (
+          {starred && (
             <span className="text-cyan-600"> · ★ starred</span>
           )}
         </p>
@@ -145,14 +141,14 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
         <button
           type="button"
           disabled={busy}
-          onClick={() => patch({ starred: !article.starred })}
-          title={article.starred ? "Unstar" : "Star"}
-          aria-label={article.starred ? "Unstar" : "Star"}
+          onClick={() => patch({ starred: !starred })}
+          title={starred ? "Unstar" : "Star"}
+          aria-label={starred ? "Unstar" : "Star"}
           className={`flex h-12 w-12 items-center justify-center rounded-lg text-xl transition-colors hover:bg-slate-100 disabled:opacity-50 ${
-            article.starred ? "text-cyan-600" : "text-slate-400"
+            starred ? "text-cyan-600" : "text-slate-400"
           }`}
         >
-          {article.starred ? "★" : "☆"}
+          {starred ? "★" : "☆"}
         </button>
         <button
           type="button"
@@ -170,15 +166,19 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
         >
           ✓
         </button>
+        <SelectCheckbox
+          articleId={article.id}
+          className="hidden h-12 w-12 shrink-0 items-center justify-center lg:flex"
+        />
         <button
           type="button"
           disabled={busy}
           onClick={handleDelete}
           title="Delete"
           aria-label="Delete"
-          className="flex h-12 w-12 items-center justify-center rounded-lg text-xl text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+          className="flex h-12 w-12 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
         >
-          ✕
+          <TrashIcon />
         </button>
       </div>
     </li>

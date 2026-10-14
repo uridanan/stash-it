@@ -25,8 +25,9 @@ import { useEffect, useState } from "react";
 import { useListen } from "@/components/listen/listen-provider";
 import {
   SelectCheckbox,
-  SelectionBar,
   SelectionProvider,
+  SelectionToolbar,
+  useLongPressSelect,
   useSelection,
 } from "@/components/article-selection";
 
@@ -45,6 +46,8 @@ export interface CollectionItem {
   readingMinutes: number;
   read: boolean;
   wontNarrate: boolean;
+  starred: boolean;
+  tagSlugs: string[];
 }
 
 export function CollectionOrder({
@@ -153,7 +156,15 @@ export function CollectionOrder({
             {unreadOnly ? `Unread only · ${totalCount} total` : "All"}
           </button>
         </div>
-        {supported && items.length > 0 ? (
+        <SelectionToolbar
+          articles={items.map((item) => ({
+            id: item.id,
+            starred: item.starred,
+            archived: item.read,
+            tagSlugs: item.tagSlugs,
+          }))}
+        >
+          {supported && items.length > 0 ? (
           <button
             type="button"
             disabled={!ready}
@@ -175,9 +186,8 @@ export function CollectionOrder({
             🎧 Listen all
           </button>
         ) : null}
+        </SelectionToolbar>
       </div>
-
-      <SelectionBar />
 
       <DndContext
         sensors={sensors}
@@ -236,12 +246,14 @@ function SortableRow({
     useSortable({ id: item.id });
   const selected = searchParams.get("article") === item.id;
   const picked = useSelection()?.selected.has(item.id) ?? false;
+  const press = useLongPressSelect(item.id);
 
   /**
    * Desktop (lg+): select into the reader pane so the collection stays on the
    * left while reading, matching the article lists. Smaller screens navigate.
    */
   function handleOpen(event: React.MouseEvent) {
+    if (press.interceptOpen(event)) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if (event.button !== 0) return;
     if (!window.matchMedia("(min-width: 1024px)").matches) return;
@@ -256,7 +268,9 @@ function SortableRow({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       data-testid="collection-row"
-      className={`flex items-center gap-2 border-b border-slate-100 py-3 ${
+      onPointerDown={press.rowProps.onPointerDown}
+      onContextMenu={press.rowProps.onContextMenu}
+      className={`flex items-center gap-2 border-b border-slate-100 py-3 ${press.rowProps.className} ${
         isDragging ? "relative z-10 bg-white opacity-90 shadow-md" : ""
       } ${selected ? "lg:-mx-3 lg:rounded-lg lg:border-transparent lg:bg-violet-50 lg:px-3" : ""} ${
         picked ? "bg-violet-50/60" : ""

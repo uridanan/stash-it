@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { ChevronDownIcon } from "@/components/icons";
 import { DEFAULT_ORDER, DEFAULT_SORT } from "@/lib/sort";
 
 /**
@@ -33,37 +34,74 @@ export function SortControl() {
     router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
-  const selectClass =
-    "min-h-12 rounded-lg border border-slate-200 bg-white px-3 py-2 text-base text-slate-800 outline-none transition-colors focus:border-violet-600";
-
   return (
     <div className="flex items-center gap-2" data-testid="sort-control">
-      <label className="flex items-center gap-2 text-base text-slate-600">
-        <span className="sr-only">Sort by</span>
-        <select
-          value={sort}
-          onChange={(event) => update({ sort: event.target.value })}
-          aria-label="Sort by"
-          data-testid="sort-by"
-          className={selectClass}
-        >
-          <option value="added">Date added</option>
-          <option value="published">Date published</option>
-        </select>
-      </label>
-      <label className="flex items-center gap-2 text-base text-slate-600">
-        <span className="sr-only">Order</span>
-        <select
-          value={order}
-          onChange={(event) => update({ order: event.target.value })}
-          aria-label="Order"
-          data-testid="sort-order"
-          className={selectClass}
-        >
-          <option value="desc">Newest first</option>
-          <option value="asc">Oldest first</option>
-        </select>
-      </label>
+      <SortSelect
+        label="Sort by"
+        testId="sort-by"
+        value={sort}
+        onChange={(value) => update({ sort: value })}
+        options={[
+          { value: "added", label: "Date added" },
+          { value: "published", label: "Date published" },
+        ]}
+      />
+      <SortSelect
+        label="Order"
+        testId="sort-order"
+        value={order}
+        onChange={(value) => update({ order: value })}
+        options={[
+          { value: "desc", label: "Newest first" },
+          { value: "asc", label: "Oldest first" },
+        ]}
+      />
     </div>
+  );
+}
+
+/**
+ * The closed control is only as wide as the selected label. A native select
+ * sizes to its longest option and pins the chevron to that wider edge, so the
+ * arrow is taken out of that width and placed after the words.
+ */
+function SortSelect({
+  label,
+  testId,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  testId: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  const selected = options.find((option) => option.value === value)?.label ?? "";
+
+  return (
+    <label className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-3 text-base text-slate-800 transition-colors focus-within:border-violet-600">
+      <span className="sr-only">{label}</span>
+      <span className="relative inline-flex items-center">
+        <span aria-hidden className="invisible whitespace-pre">
+          {selected}
+        </span>
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-label={label}
+          data-testid={testId}
+          className="absolute inset-0 w-full appearance-none bg-transparent font-[inherit] text-inherit outline-none"
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </span>
+      <ChevronDownIcon className="h-4 w-4 shrink-0 text-slate-500" />
+    </label>
   );
 }

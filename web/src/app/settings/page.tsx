@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AiSettings } from "@/components/ai-settings";
+import { AppearanceSettings } from "@/components/appearance-settings";
 import { Bookmarklet } from "@/components/bookmarklet";
 import { KindleSettings } from "@/components/kindle-settings";
 import { ListenSettings } from "@/components/listen-settings";
@@ -66,6 +67,15 @@ export default async function SettingsPage({
           blurb="Listen to an article instead of reading it. Voices come from this device, so both the list and your choice are local to it."
         >
           <ListenSettings />
+        </Panel>
+      )}
+
+      {active === "appearance" && (
+        <Panel
+          title="Appearance"
+          blurb="How an article looks while you read. Text size is saved on this device."
+        >
+          <AppearanceSettings />
         </Panel>
       )}
 

@@ -226,12 +226,17 @@ export interface UpdateArticleInput {
   starred?: boolean;
 }
 
-/** Update state/starred, scoped to the owning user. Returns null if not found. */
+/**
+ * Update state/starred, scoped to the owning user. Returns null if not found.
+ *
+ * The list columns only — not the article body. Star and read are toggles;
+ * shipping the saved HTML back made a click wait on the whole text.
+ */
 export async function updateArticle(
   id: string,
   userId: string,
   input: UpdateArticleInput,
-): Promise<ArticleRow | null> {
+): Promise<ArticleListRow | null> {
   const existing = await prisma.article.findFirst({
     where: { id, userId },
     select: { id: true, readAt: true },
@@ -253,6 +258,7 @@ export async function updateArticle(
         : {}),
       ...(input.starred !== undefined ? { starred: input.starred } : {}),
     },
+    select: LIST_SELECT,
   });
 }
 

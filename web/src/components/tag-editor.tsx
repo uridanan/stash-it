@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { TagChip } from "@/components/tag-chips";
@@ -26,9 +26,29 @@ export function TagEditor({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const clipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setTags(initialTags), [initialTags]);
+
+  // One line unless the user asks for the rest. Measured against the clip,
+  // not the chips' own box, so the "More" button appearing doesn't flicker
+  // the measurement.
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    const clip = clipRef.current;
+    if (!row || !clip || expanded) return;
+    const update = () => {
+      setOverflows(row.scrollWidth > clip.clientWidth + 1);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(clip);
+    return () => observer.disconnect();
+  }, [tags, query, expanded]);
 
   useEffect(() => {
     if (!open || all.length > 0) return;
@@ -99,37 +119,67 @@ export function TagEditor({
   }
 
   return (
-    <div ref={boxRef} className="relative mt-3 flex flex-wrap items-center gap-1">
-      {tags.map((tag) => (
-        <TagChip
-          key={tag.id}
-          tag={tag}
-          href={`/tags/${tag.slug}`}
-          onRemove={() => remove(tag.id)}
-        />
-      ))}
-
-      <input
-        value={query}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            void add(trimmed);
-          } else if (event.key === "Escape") {
-            setOpen(false);
+    <div ref={boxRef} data-testid="article-tags" className="relative mt-3">
+      <div className="flex items-center gap-1">
+        <div
+          ref={clipRef}
+          className={
+            expanded ? "min-w-0 flex-1" : "min-w-0 flex-1 overflow-hidden"
           }
-        }}
-        disabled={busy}
-        placeholder="Add tag…"
-        aria-label="Add tag"
-        data-testid="tag-input"
-        className="min-h-12 w-40 rounded-full border border-dashed border-slate-300 px-4 text-base outline-none transition-colors focus:border-violet-500 focus:bg-white"
-      />
+        >
+          <div
+            ref={rowRef}
+            className={
+              expanded
+                ? "flex flex-wrap items-center gap-1"
+                : "flex w-max flex-nowrap items-center gap-1"
+            }
+          >
+            {tags.map((tag) => (
+              <TagChip
+                key={tag.id}
+                tag={tag}
+                href={`/tags/${tag.slug}`}
+                onRemove={() => remove(tag.id)}
+                compact
+              />
+            ))}
+
+            <input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void add(trimmed);
+                } else if (event.key === "Escape") {
+                  setOpen(false);
+                }
+              }}
+              disabled={busy}
+              placeholder="Add tag…"
+              aria-label="Add tag"
+              data-testid="tag-input"
+              className="h-6 w-24 shrink-0 rounded-full border border-dashed border-slate-300 px-2 text-xs outline-none transition-colors focus:border-violet-500 focus:bg-white"
+            />
+          </div>
+        </div>
+        {overflows || expanded ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            aria-expanded={expanded}
+            data-testid="tags-expand"
+            className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium text-violet-700 hover:bg-violet-50"
+          >
+            {expanded ? "Less" : "More"}
+          </button>
+        ) : null}
+      </div>
 
       {open && (suggestions.length > 0 || (trimmed && !exactExists)) ? (
         <ul

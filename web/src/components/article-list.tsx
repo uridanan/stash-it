@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import { ArticleRow, type ArticleRowData } from "@/components/article-row";
 import { toRowData } from "@/components/article-list-data";
 import {
-  SelectionBar,
   SelectionProvider,
+  SelectionToolbar,
 } from "@/components/article-selection";
+import { SortControl } from "@/components/sort-control";
 import type { ArticleListResponse } from "@/types";
 
 /** Filters for the next page. Omitted on lists that already have every row. */
@@ -37,11 +38,14 @@ export function ArticleList({
   emptyTitle,
   emptyHint,
   page,
+  heading,
 }: {
   articles: ArticleRowData[];
   emptyTitle: string;
   emptyHint: string;
   page?: ArticleListPage;
+  /** Shown on the left of the sort row. Home leaves this off. */
+  heading?: string;
 }) {
   const [state, setState] = useState({
     articles,
@@ -125,20 +129,34 @@ export function ArticleList({
     };
   }, [cursor, failed, page]);
 
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
-        <p className="text-base font-medium text-slate-700">{emptyTitle}</p>
-        <p className="mt-1 text-sm text-slate-500">{emptyHint}</p>
-      </div>
-    );
-  }
+  const targets = rows.map((article) => ({
+    id: article.id,
+    starred: article.starred,
+    archived: article.state === "ARCHIVED",
+    tagSlugs: article.tags.map((tag) => tag.slug),
+  }));
 
   return (
-    // Wrapped so every row gets a checkbox and the bar above them can act on
-    // what is ticked; the provider holds the only copy of that state.
     <SelectionProvider>
-      <SelectionBar />
+      <div
+        className={`mb-4 flex w-full min-w-0 items-center gap-3 ${
+          heading ? "justify-between" : "justify-end"
+        }`}
+      >
+        {heading ? (
+          <h1 className="text-xl font-bold text-slate-900">{heading}</h1>
+        ) : null}
+        <SelectionToolbar articles={targets}>
+          <SortControl />
+        </SelectionToolbar>
+      </div>
+      {rows.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
+          <p className="text-base font-medium text-slate-700">{emptyTitle}</p>
+          <p className="mt-1 text-sm text-slate-500">{emptyHint}</p>
+        </div>
+      ) : (
+      <>
       <ul>
         {rows.map((article) => (
           <ArticleRow key={article.id} article={article} />
@@ -158,6 +176,8 @@ export function ArticleList({
             <p className="text-sm text-slate-400">{loading ? "Loading more…" : "Scroll for more"}</p>
           )}
         </div>
+      )}
+      </>
       )}
     </SelectionProvider>
   );

@@ -15,23 +15,21 @@ import {
 } from "@/components/icons";
 
 /**
- * The reader's overflow menu: refetch the text, regenerate the summary, delete.
+ * The reader's overflow menu: refetch, summarize, send, delete.
  *
  * These are the escape hatch the import deliberately leaves open. An import
  * never overwrites an article it already has, so correcting one is done from
- * here rather than by importing again — but they are rare next to star, read
- * and download, and destructive enough that they should not sit one stray
- * click away, which is why they live behind the menu.
+ * here rather than by importing again — but they are rare next to star, read,
+ * listen and download, and destructive enough that they should not sit one
+ * stray click away.
  */
 export function ArticleActions({
   articleId,
-  aiConfigured,
   kindleConfigured,
   onDeleted,
   buttonClass,
 }: {
   articleId: string;
-  aiConfigured: boolean;
   /** Both a mail transport and a Kindle address are set up. */
   kindleConfigured: boolean;
   /** Called after a successful delete, to leave the reader. */
@@ -154,18 +152,16 @@ export function ArticleActions({
                 void post(`/api/articles/${articleId}/extract?force=1`, "refetch");
               }}
             />
-            {aiConfigured && (
-              <MenuItem
-                icon={<SparkleIcon />}
-                label={busy === "summary" ? "Summarizing…" : "Summarize"}
-                disabled={busy !== null}
-                testId="regenerate-summary"
-                onSelect={() => {
-                  close();
-                  void post(`/api/articles/${articleId}/summary`, "summary");
-                }}
-              />
-            )}
+            <MenuItem
+              icon={<SparkleIcon />}
+              label={busy === "summary" ? "Summarizing…" : "Summarize"}
+              disabled={busy !== null}
+              testId="regenerate-summary"
+              onSelect={() => {
+                close();
+                void post(`/api/articles/${articleId}/summary`, "summary");
+              }}
+            />
             {kindleConfigured && (
               <MenuItem
                 icon={<KindleIcon />}

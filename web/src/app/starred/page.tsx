@@ -5,7 +5,6 @@ import { getArticle, listArticles, parseOrder, parseSort } from "@/lib/articles"
 import { tagsForArticles } from "@/lib/tags";
 import { ArticleList } from "@/components/article-list";
 import { toRowData } from "@/components/article-list-data";
-import { SortControl } from "@/components/sort-control";
 import { AppShell } from "@/components/app-shell";
 import { SplitView } from "@/components/split-view";
 
@@ -51,12 +50,8 @@ export default async function StarredPage({
         requestedId={articleId}
         list={
           <>
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-xl font-bold text-slate-900">Starred</h1>
-          <SortControl />
-        </div>
-        <div className="mt-4">
           <ArticleList
+            heading="Starred"
             articles={articles.map((a) =>
               toRowData(a, tagsByArticle.get(a.id) ?? []),
             )}
@@ -72,7 +67,6 @@ export default async function StarredPage({
                 : "Star the articles you love and they will collect here."
             }
           />
-        </div>
           </>
         }
       />

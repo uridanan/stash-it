@@ -15,6 +15,7 @@ import Link from "next/link";
 export const SETTINGS_TABS = [
   { id: "ai", label: "AI summaries" },
   { id: "listening", label: "Listening" },
+  { id: "appearance", label: "Appearance" },
   { id: "kindle", label: "Kindle" },
   { id: "data", label: "Your data" },
   { id: "apps", label: "Apps & tokens" },

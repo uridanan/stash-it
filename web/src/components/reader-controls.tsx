@@ -8,6 +8,7 @@ import { useWakeLock } from "@/components/use-wake-lock";
 import { ArticleActions } from "@/components/article-actions";
 import { DownloadMenu } from "@/components/download-menu";
 import { useReaderLayout } from "@/components/reader-layout";
+import { readFontSize } from "@/components/reader-font";
 import {
   CheckIcon,
   CloseIcon,
@@ -16,36 +17,26 @@ import {
   PanelLeftIcon,
   StarIcon,
   StopIcon,
-  TextLargerIcon,
-  TextSmallerIcon,
 } from "@/components/icons";
-
-const MIN_FONT_SIZE = 14;
-const MAX_FONT_SIZE = 26;
-const FONT_SIZE_STEP = 2;
-const FONT_SIZE_KEY = "stash:font-size";
 
 /**
  * The reader's toolbar.
  *
- * Every control is an icon with a tooltip: the bar carries ten actions and
- * labelling them all in words pushed the row past the width of a split pane.
- * The left half is about the view — leave, widen, resize the text — and the
- * right half is about the article. Fetch, summarize and delete sit in the
- * overflow menu because they are rare and, in one case, irreversible.
+ * Every control is an icon with a tooltip, and the row stays on one line:
+ * leave, widen, then star, read, listen, download, and the overflow menu.
+ * Text size lives in Settings → Appearance. Fetch, summarize and delete sit
+ * in the overflow menu because they are rare and, in one case, irreversible.
  */
 export function ReaderControls({
   articleId,
   starred,
   archived,
-  aiConfigured,
   kindleConfigured,
   children,
 }: {
   articleId: string;
   starred: boolean;
   archived: boolean;
-  aiConfigured: boolean;
   kindleConfigured: boolean;
   children: React.ReactNode;
 }) {
@@ -79,30 +70,8 @@ export function ReaderControls({
   }
 
   useEffect(() => {
-    try {
-      const storedSize = Number(window.localStorage.getItem(FONT_SIZE_KEY));
-      if (storedSize >= MIN_FONT_SIZE && storedSize <= MAX_FONT_SIZE) {
-        setFontSize(storedSize);
-      }
-    } catch {
-      // localStorage unavailable (private mode etc.) — use the default.
-    }
+    setFontSize(readFontSize());
   }, []);
-
-  function adjustFontSize(delta: number) {
-    setFontSize((current) => {
-      const next = Math.min(
-        MAX_FONT_SIZE,
-        Math.max(MIN_FONT_SIZE, current + delta)
-      );
-      try {
-        window.localStorage.setItem(FONT_SIZE_KEY, String(next));
-      } catch {
-        // Best effort only.
-      }
-      return next;
-    });
-  }
 
   async function toggleStar() {
     if (busy) return;
@@ -147,7 +116,7 @@ export function ReaderControls({
   return (
     <div>
       <div className="sticky top-16 z-10 -mx-4 border-b border-slate-200 bg-paper/95 px-2 py-2 backdrop-blur-sm md:top-0">
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex flex-nowrap items-center gap-1">
           <button
             type="button"
             onClick={exitReader}
@@ -175,30 +144,7 @@ export function ReaderControls({
 
           <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
 
-          <button
-            type="button"
-            onClick={() => adjustFontSize(-FONT_SIZE_STEP)}
-            disabled={fontSize <= MIN_FONT_SIZE}
-            title="Decrease text size"
-            aria-label="Decrease text size"
-            data-testid="font-smaller"
-            className={controlButton}
-          >
-            <TextSmallerIcon />
-          </button>
-          <button
-            type="button"
-            onClick={() => adjustFontSize(FONT_SIZE_STEP)}
-            disabled={fontSize >= MAX_FONT_SIZE}
-            title="Increase text size"
-            aria-label="Increase text size"
-            data-testid="font-larger"
-            className={controlButton}
-          >
-            <TextLargerIcon />
-          </button>
-
-          <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">
+          <div className="ml-auto flex items-center justify-end gap-1">
             <button
               type="button"
               disabled={busy}
@@ -228,8 +174,6 @@ export function ReaderControls({
               <CheckIcon />
             </button>
 
-            <DownloadMenu articleId={articleId} buttonClass={controlButton} />
-
             {listen.supported && (
               <button
                 type="button"
@@ -256,9 +200,10 @@ export function ReaderControls({
               </button>
             )}
 
+            <DownloadMenu articleId={articleId} buttonClass={controlButton} />
+
             <ArticleActions
               articleId={articleId}
-              aiConfigured={aiConfigured}
               kindleConfigured={kindleConfigured}
               onDeleted={exitReader}
               buttonClass={controlButton}

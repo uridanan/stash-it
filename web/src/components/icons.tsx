@@ -103,6 +103,14 @@ export function CheckIcon(props: IconProps) {
   );
 }
 
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M6.5 9.5l5.5 5.5 5.5-5.5" />
+    </Svg>
+  );
+}
+
 export function DownloadIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -158,6 +166,15 @@ export function TrashIcon(props: IconProps) {
   return (
     <Svg {...props}>
       <path d="M4.5 6.5h15M9.5 6.5V4.8a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.7M6.5 6.5l.8 12.2a1.5 1.5 0 0 0 1.5 1.3h6.4a1.5 1.5 0 0 0 1.5-1.3l.8-12.2" />
+    </Svg>
+  );
+}
+
+export function TagIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3.5 12.2V5.2A1.7 1.7 0 0 1 5.2 3.5h7l8.3 8.3-6.7 6.7z" />
+      <circle cx="8.2" cy="8.2" r="1.15" />
     </Svg>
   );
 }

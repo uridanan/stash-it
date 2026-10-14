@@ -42,7 +42,8 @@ export default async function TagPage({
     siteName: true,
     readingMinutes: true,
     state: true,
-    tags: { select: { tag: { select: { name: true } } } },
+    starred: true,
+    tags: { select: { tag: { select: { name: true, slug: true } } } },
   };
 
   const rows = await listTagArticles(session.user.id, tag.id, SELECT, unreadOnly);
@@ -58,7 +59,8 @@ export default async function TagPage({
       siteName: string | null;
       readingMinutes: number;
       state: string;
-      tags: { tag: { name: string } }[];
+      starred: boolean;
+      tags: { tag: { name: string; slug: string } }[];
     };
     return {
       id: article.id,
@@ -66,7 +68,9 @@ export default async function TagPage({
       siteName: article.siteName,
       readingMinutes: article.readingMinutes,
       read: String(article.state).toUpperCase() === "ARCHIVED",
+      starred: Boolean(article.starred),
       wontNarrate: article.tags.some((t) => t.tag.name === TAG_WONT_NARRATE),
+      tagSlugs: article.tags.map((t) => t.tag.slug),
     };
   });
 

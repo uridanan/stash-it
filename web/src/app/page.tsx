@@ -13,7 +13,6 @@ import { tagsForArticles } from "@/lib/tags";
 import { AddUrl } from "@/components/add-url";
 import { ArticleList } from "@/components/article-list";
 import { toRowData } from "@/components/article-list-data";
-import { SortControl } from "@/components/sort-control";
 import { AppShell } from "@/components/app-shell";
 import { SplitView } from "@/components/split-view";
 
@@ -56,10 +55,7 @@ async function HomeList({
       list={
         <>
           <AddUrl />
-          <div className="mt-6 flex justify-end">
-            <SortControl />
-          </div>
-          <div className="mt-3">
+          <div className="mt-6">
             <ArticleList
               articles={articles.map((a) =>
                 toRowData(a, tagsByArticle.get(a.id) ?? []),
