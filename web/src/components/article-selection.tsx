@@ -32,8 +32,9 @@ import {
  * Selecting several articles at once.
  *
  * On a desktop the checkbox sits in each row's action overlay, to the left of
- * delete. Phones have no checkbox: a long press selects, and further taps
- * toggle until the selection is cleared.
+ * delete. Phones have no checkbox and no per-card actions: a long press enters
+ * select mode, and every later tap adds or removes that article until the
+ * selection is cleared from the top bar.
  * Once anything is selected, the list's top controls become star, read, tag,
  * listen (one article only), and an overflow menu.
  */
@@ -133,9 +134,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 /**
  * Long-press selection for phone-width lists.
  *
- * Spread `rowProps` on the row. Call `interceptOpen` from the title link's
- * click so a completed long press does not navigate, and so a tap while a
- * selection is open toggles instead of opening.
+ * Spread `rowProps` on the row. A long press enters select mode and picks the
+ * article. After that, a tap anywhere on a card adds or removes it. Call
+ * `interceptOpen` from the title link so a tap that reaches the link still
+ * toggles instead of opening.
  */
 export function useLongPressSelect(articleId: string) {
   const selection = useSelection();
@@ -144,7 +146,7 @@ export function useLongPressSelect(articleId: string) {
   const onPointerDown = useCallback(
     (event: React.PointerEvent) => {
       if (!selection || event.button !== 0) return;
-      if (isDesktop()) return;
+      if (isDesktop() || selection.selecting) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("button, input, a[target]")) return;
 
@@ -184,19 +186,18 @@ export function useLongPressSelect(articleId: string) {
     if (!isDesktop()) event.preventDefault();
   }, []);
 
-  const interceptOpen = useCallback(
+  const toggleFromTap = useCallback(
     (event: React.MouseEvent) => {
       if (suppressClick.current) {
         suppressClick.current = false;
         event.preventDefault();
+        event.stopPropagation();
         return true;
       }
       if (!selection?.selecting || isDesktop()) return false;
       event.preventDefault();
-      const only =
-        selection.selected.size === 1 && selection.selected.has(articleId);
+      event.stopPropagation();
       selection.toggle(articleId);
-      if (only) selection.setSelecting(false);
       return true;
     },
     [articleId, selection],
@@ -205,10 +206,11 @@ export function useLongPressSelect(articleId: string) {
   return {
     rowProps: {
       onPointerDown,
+      onClickCapture: toggleFromTap,
       onContextMenu,
       className: "max-lg:select-none max-lg:[-webkit-touch-callout:none]",
     },
-    interceptOpen,
+    interceptOpen: toggleFromTap,
   };
 }
 
@@ -513,6 +515,7 @@ function SelectionActions({
   }>({ added: {}, removed: {} });
 
   const count = selection?.selected.size ?? 0;
+  const choosing = count > 0 || Boolean(selection?.selecting);
   const ids = useMemo(
     () => (selection ? [...selection.selected] : []),
     [selection],
@@ -791,9 +794,7 @@ function SelectionActions({
 
   return (
     <div className="relative z-30 ml-auto flex min-w-0 items-center">
-      {count === 0 ? (
-        <div className="flex items-center gap-2">{children}</div>
-      ) : (
+      {choosing ? (
       <div
         data-testid="selection-bar"
         className="flex flex-nowrap items-center gap-0.5"
@@ -804,7 +805,7 @@ function SelectionActions({
 
             <button
               type="button"
-              disabled={busy !== null}
+              disabled={busy !== null || count === 0}
               onClick={() => void patchEach({ starred: !allStarred })}
               title={allStarred ? "Unstar" : "Star"}
               aria-label={allStarred ? "Unstar" : "Star"}
@@ -816,7 +817,7 @@ function SelectionActions({
             </button>
             <button
               type="button"
-              disabled={busy !== null}
+              disabled={busy !== null || count === 0}
               onClick={() =>
                 void patchEach({ state: allRead ? "unread" : "archived" })
               }
@@ -831,7 +832,7 @@ function SelectionActions({
             <Menu
               label="Add to collection"
               testId="selection-add-to-collection"
-              disabled={busy !== null}
+              disabled={busy !== null || count === 0}
               className={actionButton}
               icon={busy === "tag" ? <SpinnerIcon /> : <TagIcon />}
             >
@@ -868,7 +869,7 @@ function SelectionActions({
             <Menu
               label="More actions"
               testId="selection-more"
-              disabled={busy !== null}
+              disabled={busy !== null || count === 0}
               className={actionButton}
               icon={
                 busy === "fetch" || busy === "summarize" || busy === "delete" ? (
@@ -927,6 +928,8 @@ function SelectionActions({
               <CloseIcon />
             </button>
       </div>
+      ) : (
+        <div className="flex items-center gap-2">{children}</div>
       )}
 
       {error ? (

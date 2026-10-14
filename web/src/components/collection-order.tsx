@@ -269,6 +269,7 @@ function SortableRow({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       data-testid="collection-row"
       onPointerDown={press.rowProps.onPointerDown}
+      onClickCapture={press.rowProps.onClickCapture}
       onContextMenu={press.rowProps.onContextMenu}
       className={`flex items-center gap-2 border-b border-slate-100 py-3 ${press.rowProps.className} ${
         isDragging ? "relative z-10 bg-white opacity-90 shadow-md" : ""

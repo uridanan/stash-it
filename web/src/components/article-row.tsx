@@ -88,6 +88,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
     <li
       data-testid="article-row"
       onPointerDown={press.rowProps.onPointerDown}
+      onClickCapture={press.rowProps.onClickCapture}
       onContextMenu={press.rowProps.onContextMenu}
       className={`group relative border-b border-slate-200 py-4 last:border-b-0 ${press.rowProps.className} ${
         selected ? "lg:-mx-3 lg:rounded-lg lg:border-transparent lg:bg-violet-50 lg:px-3" : ""
@@ -137,7 +138,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
         </div>
       </div>
 
-      <div className="mt-2 flex items-center gap-1 transition-opacity sm:absolute sm:right-0 sm:top-3 sm:mt-0 sm:rounded-lg sm:border sm:border-slate-200 sm:bg-white sm:px-1 sm:py-0.5 sm:opacity-0 sm:shadow-sm sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+      <div className="hidden items-center gap-1 lg:absolute lg:right-0 lg:top-3 lg:z-10 lg:flex lg:rounded-lg lg:border lg:border-slate-200 lg:bg-white lg:px-1 lg:py-0.5 lg:opacity-0 lg:shadow-sm lg:transition-opacity lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
         <button
           type="button"
           disabled={busy}
