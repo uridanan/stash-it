@@ -1,40 +1,27 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 
-/**
- * The settings sections, as tabs.
- *
- * Which tab is open lives in the URL (`?tab=kindle`) rather than in component
- * state, for the same reason the article sort does: it survives a reload, it
- * can be linked to, and it is readable on the server — so the page renders one
- * panel instead of rendering all of them and hiding four.
- *
- * That last part is the real gain. Every panel here fetches something or talks
- * to the browser (voices, tokens, settings), and the page used to do all of it
- * on every visit.
- */
-export const SETTINGS_TABS = [
-  { id: "ai", label: "AI summaries" },
-  { id: "listening", label: "Listening" },
-  { id: "appearance", label: "Appearance" },
-  { id: "kindle", label: "Kindle" },
-  { id: "data", label: "Your data" },
-  { id: "apps", label: "Apps & tokens" },
-] as const;
-
-export type SettingsTab = (typeof SETTINGS_TABS)[number]["id"];
-
-export const DEFAULT_SETTINGS_TAB: SettingsTab = "ai";
-
-/** Reads `?tab=` into a known tab, falling back rather than 404ing. */
-export function parseSettingsTab(value: unknown): SettingsTab {
-  return SETTINGS_TABS.some((tab) => tab.id === value)
-    ? (value as SettingsTab)
-    : DEFAULT_SETTINGS_TAB;
-}
+import {
+  SETTINGS_TABS,
+  type SettingsTab,
+} from "@/components/settings-sections";
 
 export function SettingsTabs({ active }: { active: SettingsTab }) {
+  const nav = useRef<HTMLElement>(null);
+
+  // The row scrolls sideways. Bring the open tab fully into view, otherwise
+  // the last one sits clipped under the edge of the column.
+  useEffect(() => {
+    nav.current
+      ?.querySelector<HTMLElement>("[aria-current='page']")
+      ?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [active]);
+
   return (
     <nav
+      ref={nav}
       aria-label="Settings sections"
       data-testid="settings-tabs"
       // Scrolls sideways on a narrow screen rather than wrapping into a block

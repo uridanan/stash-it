@@ -3,12 +3,12 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AiSettings } from "@/components/ai-settings";
 import { AppearanceSettings } from "@/components/appearance-settings";
-import { Bookmarklet } from "@/components/bookmarklet";
 import { KindleSettings } from "@/components/kindle-settings";
 import { ListenSettings } from "@/components/listen-settings";
 import { DataTransfer } from "@/components/data-transfer";
 import { AppShell } from "@/components/app-shell";
-import { SettingsTabs, parseSettingsTab } from "@/components/settings-tabs";
+import { parseSettingsTab } from "@/components/settings-sections";
+import { SettingsTabs } from "@/components/settings-tabs";
 import { TokenManager } from "@/components/token-manager";
 
 export const metadata: Metadata = {
@@ -45,6 +45,7 @@ export default async function SettingsPage({
   }
 
   const { tab } = await searchParams;
+  if (tab === "install") redirect("/install");
   const active = parseSettingsTab(tab);
 
   return (
@@ -141,14 +142,6 @@ export default async function SettingsPage({
             </ol>
           </section>
 
-          <section className="mt-10">
-            <h2 className="text-base font-semibold text-slate-900">
-              Bookmarklet
-            </h2>
-            <div className="mt-3">
-              <Bookmarklet />
-            </div>
-          </section>
         </>
       )}
     </AppShell>
