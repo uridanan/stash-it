@@ -92,7 +92,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
       onContextMenu={press.rowProps.onContextMenu}
       className={`group relative border-b border-slate-200 py-4 last:border-b-0 ${press.rowProps.className} ${
         selected ? "lg:-mx-3 lg:rounded-lg lg:border-transparent lg:bg-violet-50 lg:px-3" : ""
-      } ${picked ? "bg-violet-50/60" : ""}`}
+      } ${picked ? "max-lg:bg-violet-200/70 lg:bg-violet-50/60" : ""}`}
     >
       <div className="pr-2">
         <div className="min-w-0">

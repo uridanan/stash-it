@@ -274,7 +274,7 @@ function SortableRow({
       className={`flex items-center gap-2 border-b border-slate-100 py-3 ${press.rowProps.className} ${
         isDragging ? "relative z-10 bg-white opacity-90 shadow-md" : ""
       } ${selected ? "lg:-mx-3 lg:rounded-lg lg:border-transparent lg:bg-violet-50 lg:px-3" : ""} ${
-        picked ? "bg-violet-50/60" : ""
+        picked ? "max-lg:bg-violet-200/70 lg:bg-violet-50/60" : ""
       }`}
     >
       <button
