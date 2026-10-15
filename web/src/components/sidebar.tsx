@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+
+import { AddUrlLauncher } from "@/components/add-url";
+import { SortControl } from "@/components/sort-control";
 
 export type ActiveNav =
   | "home"
@@ -417,6 +420,14 @@ export function Sidebar(props: SidebarProps) {
         <Link href="/" className="text-lg font-bold tracking-tight text-slate-900">
           Stash
         </Link>
+        {props.active === "home" || props.active === "archive" || props.active === "starred" ? (
+          <Suspense fallback={null}>
+            <div className="ml-auto flex items-center gap-1">
+              {props.active === "home" ? <AddUrlLauncher /> : null}
+              <SortControl />
+            </div>
+          </Suspense>
+        ) : null}
       </div>
 
       {/* Mobile drawer */}

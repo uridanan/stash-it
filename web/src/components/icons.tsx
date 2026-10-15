@@ -111,6 +111,23 @@ export function ChevronDownIcon(props: IconProps) {
   );
 }
 
+export function PlusIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </Svg>
+  );
+}
+
+/** Up and down arrows: the list's sort control. */
+export function SortIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M8 5v14M8 19l-3.2-3.2M8 19l3.2-3.2M16 19V5M16 5l-3.2 3.2M16 5l3.2 3.2" />
+    </Svg>
+  );
+}
+
 export function DownloadIcon(props: IconProps) {
   return (
     <Svg {...props}>

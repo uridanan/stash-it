@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ArticleRow, type ArticleRowData } from "@/components/article-row";
 import { toRowData } from "@/components/article-list-data";
 import {
   SelectionProvider,
   SelectionToolbar,
+  useSelection,
 } from "@/components/article-selection";
 import { SortControl } from "@/components/sort-control";
 import type { ArticleListResponse } from "@/types";
@@ -20,6 +21,36 @@ export type ArticleListPage = {
   sort?: string;
   order?: string;
 };
+
+function ListHeader({
+  heading,
+  leading,
+  targets,
+}: {
+  heading?: string;
+  leading?: ReactNode;
+  targets: { id: string; starred: boolean; archived: boolean; tagSlugs: string[] }[];
+}) {
+  const selection = useSelection();
+  const choosing = (selection?.selected.size ?? 0) > 0 || Boolean(selection?.selecting);
+
+  return (
+    <div
+      className={`flex w-full min-w-0 items-center gap-2 ${
+        heading || choosing ? "mb-4" : "mb-4 max-md:mb-0"
+      }`}
+    >
+      {heading ? (
+        <h1 className="text-xl font-bold text-slate-900">{heading}</h1>
+      ) : null}
+      {choosing ? null : leading}
+      <SelectionToolbar articles={targets}>
+        {/* Phones keep this button on the title bar, so it doesn't take a row. */}
+        <SortControl className="max-md:hidden" />
+      </SelectionToolbar>
+    </div>
+  );
+}
 
 function pageQuery(page: ArticleListPage, cursor: string): string {
   const params = new URLSearchParams();
@@ -39,6 +70,7 @@ export function ArticleList({
   emptyHint,
   page,
   heading,
+  leading,
 }: {
   articles: ArticleRowData[];
   emptyTitle: string;
@@ -46,6 +78,8 @@ export function ArticleList({
   page?: ArticleListPage;
   /** Shown on the left of the sort row. Home leaves this off. */
   heading?: string;
+  /** Desktop save field. Phones use the title-bar button instead. */
+  leading?: ReactNode;
 }) {
   const [state, setState] = useState({
     articles,
@@ -138,18 +172,7 @@ export function ArticleList({
 
   return (
     <SelectionProvider>
-      <div
-        className={`mb-4 flex w-full min-w-0 items-center gap-3 ${
-          heading ? "justify-between" : "justify-end"
-        }`}
-      >
-        {heading ? (
-          <h1 className="text-xl font-bold text-slate-900">{heading}</h1>
-        ) : null}
-        <SelectionToolbar articles={targets}>
-          <SortControl />
-        </SelectionToolbar>
-      </div>
+      <ListHeader heading={heading} leading={leading} targets={targets} />
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
           <p className="text-base font-medium text-slate-700">{emptyTitle}</p>

@@ -356,14 +356,18 @@ test("sorting by published date puts undated articles last, both ways", async ()
 
 test("the sort control writes its choice to the URL", async () => {
   await page.goto("/");
-  await page.getByTestId("sort-by").selectOption("published");
+  const sort = page.getByRole("button", { name: "Sort" });
+  await sort.click();
+  await page.getByRole("menuitemradio", { name: "Date published" }).click();
   await expect.poll(() => page.url()).toContain("sort=published");
 
-  await page.getByTestId("sort-order").selectOption("asc");
+  await sort.click();
+  await page.getByRole("menuitemradio", { name: "Oldest first" }).click();
   await expect.poll(() => page.url()).toContain("order=asc");
 
   // Defaults are implied rather than spelled out.
-  await page.getByTestId("sort-by").selectOption("added");
+  await sort.click();
+  await page.getByRole("menuitemradio", { name: "Date added" }).click();
   await expect.poll(() => page.url()).not.toContain("sort=");
 });
 

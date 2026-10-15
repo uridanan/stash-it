@@ -53,27 +53,21 @@ async function HomeList({
       article={selected}
       requestedId={articleId}
       list={
-        <>
-          <AddUrl />
-          <div className="mt-6">
-            <ArticleList
-              articles={articles.map((a) =>
-                toRowData(a, tagsByArticle.get(a.id) ?? []),
-              )}
-              page={{ nextCursor, state: "unread", q: query, sort, order }}
-              emptyTitle={
-                query
-                  ? `No unread articles match “${query}”`
-                  : "Nothing stashed yet"
-              }
-              emptyHint={
-                query
-                  ? "Try a different search."
-                  : "Paste a URL above to save your first article."
-              }
-            />
-          </div>
-        </>
+        <ArticleList
+          leading={<AddUrl />}
+          articles={articles.map((a) =>
+            toRowData(a, tagsByArticle.get(a.id) ?? []),
+          )}
+          page={{ nextCursor, state: "unread", q: query, sort, order }}
+          emptyTitle={
+            query ? `No unread articles match “${query}”` : "Nothing stashed yet"
+          }
+          emptyHint={
+            query
+              ? "Try a different search."
+              : "Save a URL to stash your first article."
+          }
+        />
       }
     />
   );
