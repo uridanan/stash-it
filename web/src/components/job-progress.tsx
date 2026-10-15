@@ -31,8 +31,15 @@ interface Estimate {
   needsConfirmation: boolean;
 }
 
+interface FillInCount {
+  done: number;
+  left: number;
+  aside: number;
+}
+
 interface JobsState {
   remaining: Record<JobType, number>;
+  progress?: Record<JobType, FillInCount>;
   summarizeEstimate: Estimate;
   active: Job | null;
 }
@@ -160,7 +167,7 @@ export function JobProgress() {
             />
           </div>
           <p data-testid="job-counts" className="mt-1 text-xs text-slate-600">
-            {active.done} of {active.total} done
+            {active.done} of {active.total} in this run
             {active.failed > 0 ? ` · ${active.failed} unreachable` : ""}
           </p>
         </div>
@@ -168,8 +175,16 @@ export function JobProgress() {
 
       {(Object.keys(LABELS) as JobType[]).map((type) => {
         const remaining = state.remaining[type] ?? 0;
+        const progress = state.progress?.[type] ?? {
+          done: 0,
+          left: remaining,
+          aside: 0,
+        };
         const estimate = type === "SUMMARIZE" ? state.summarizeEstimate : null;
         const gated = Boolean(estimate?.needsConfirmation);
+        const settled = progress.done + progress.left;
+        const percent =
+          settled > 0 ? Math.min(100, Math.round((progress.done / settled) * 100)) : 0;
 
         return (
           <div key={type} className="rounded-lg border border-slate-200 px-4 py-3">
@@ -177,10 +192,26 @@ export function JobProgress() {
               <span className="text-sm font-medium text-slate-900">
                 {LABELS[type]}
               </span>
-              <span className="text-xs text-slate-500">
-                {remaining === 0 ? "nothing outstanding" : `${remaining} waiting`}
+              <span
+                className="text-xs tabular-nums text-slate-600"
+                data-testid={`job-progress-${type}`}
+              >
+                {progress.done.toLocaleString()} done · {progress.left.toLocaleString()} left
               </span>
             </div>
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full bg-violet-600"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+            {progress.aside > 0 ? (
+              <p className="mt-1 text-xs text-slate-500">
+                {type === "FETCH_CONTENT"
+                  ? `${progress.aside.toLocaleString()} unreachable, and not tried again`
+                  : `${progress.aside.toLocaleString()} still need text before this can run`}
+              </p>
+            ) : null}
             <p className="mt-1 text-xs text-slate-500">{BLURBS[type]}</p>
 
             {gated && confirming && type === "SUMMARIZE" ? (

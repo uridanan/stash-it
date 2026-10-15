@@ -104,6 +104,80 @@ export function countRemaining(
   return prisma.article.count({ where: remainingWhere(userId, type, force) });
 }
 
+/** Done and left for one fill-in pass, counted across the whole library. */
+export interface FillInCount {
+  done: number;
+  left: number;
+  /**
+   * Fetch: the page was tried and could not be read, so it is not left to do.
+   * Classify and summarize: the article has no text yet, so this pass cannot
+   * start on it.
+   */
+  aside: number;
+}
+
+/**
+ * How far each pass has got, derived from the articles rather than from the
+ * last job's counters. A finished job forgets itself; the articles do not.
+ */
+export async function fillInProgress(
+  userId: string,
+): Promise<Record<JobType, FillInCount>> {
+  const [row] = await prisma.$queryRaw<
+    {
+      fetch_done: number;
+      fetch_left: number;
+      fetch_failed: number;
+      classify_done: number;
+      classify_left: number;
+      summarize_done: number;
+      summarize_left: number;
+      no_text: number;
+    }[]
+  >`
+    SELECT
+      COUNT(*) FILTER (WHERE content <> '')::int AS fetch_done,
+      COUNT(*) FILTER (WHERE content = '' AND "extractionFailed" = false)::int AS fetch_left,
+      COUNT(*) FILTER (WHERE content = '' AND "extractionFailed" = true)::int AS fetch_failed,
+      COUNT(*) FILTER (WHERE content <> '' AND "classifiedAt" IS NOT NULL)::int AS classify_done,
+      COUNT(*) FILTER (WHERE content <> '' AND "classifiedAt" IS NULL)::int AS classify_left,
+      COUNT(*) FILTER (WHERE content <> '' AND summary IS NOT NULL)::int AS summarize_done,
+      COUNT(*) FILTER (WHERE content <> '' AND summary IS NULL)::int AS summarize_left,
+      COUNT(*) FILTER (WHERE content = '')::int AS no_text
+    FROM "Article"
+    WHERE "userId" = ${userId}
+  `;
+
+  const counts = row ?? {
+    fetch_done: 0,
+    fetch_left: 0,
+    fetch_failed: 0,
+    classify_done: 0,
+    classify_left: 0,
+    summarize_done: 0,
+    summarize_left: 0,
+    no_text: 0,
+  };
+
+  return {
+    FETCH_CONTENT: {
+      done: counts.fetch_done,
+      left: counts.fetch_left,
+      aside: counts.fetch_failed,
+    },
+    CLASSIFY: {
+      done: counts.classify_done,
+      left: counts.classify_left,
+      aside: counts.no_text,
+    },
+    SUMMARIZE: {
+      done: counts.summarize_done,
+      left: counts.summarize_left,
+      aside: counts.no_text,
+    },
+  };
+}
+
 export interface JobProgress {
   id: string;
   type: JobType;

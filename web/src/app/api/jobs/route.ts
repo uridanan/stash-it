@@ -6,6 +6,7 @@ import {
   activeJob,
   countRemaining,
   estimateCost,
+  fillInProgress,
   JobConflictError,
   reapAbandonedJobs,
   recentJobs,
@@ -38,10 +39,11 @@ export async function GET(req: Request) {
   // stale row here rather than letting it block every future job.
   await reapAbandonedJobs(user.userId);
 
-  const [remaining, summarize, active, recent] = await Promise.all([
+  const [remaining, progress, summarize, active, recent] = await Promise.all([
     Promise.all(
       TYPES.map(async (type) => [type, await countRemaining(user.userId, type)] as const),
     ),
+    fillInProgress(user.userId),
     estimateCost(user.userId, "SUMMARIZE"),
     activeJob(user.userId),
     recentJobs(user.userId),
@@ -49,6 +51,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     remaining: Object.fromEntries(remaining),
+    progress,
     summarizeEstimate: summarize,
     active,
     recent,
