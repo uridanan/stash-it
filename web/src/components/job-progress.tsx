@@ -6,11 +6,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * The three fill-in axes, with progress for whichever is running.
  *
  * Polled rather than pushed: a job takes hours and its state lives in the
- * database, so a poll survives a reload, a second tab, and a server restart —
- * none of which a socket would.
+ * database, so opening this page again shows the same run — still going, or
+ * the report once it has finished. A socket would not survive the reload.
  */
 
 type JobType = "FETCH_CONTENT" | "CLASSIFY" | "SUMMARIZE";
+
+interface JobFailure {
+  articleId: string;
+  title: string;
+  url: string;
+  reason: string;
+}
 
 interface Job {
   id: string;
@@ -21,6 +28,7 @@ interface Job {
   failed: number;
   cancelRequested: boolean;
   error: string | null;
+  failures: JobFailure[];
 }
 
 interface Estimate {
@@ -42,6 +50,7 @@ interface JobsState {
   progress?: Record<JobType, FillInCount>;
   summarizeEstimate: Estimate;
   active: Job | null;
+  recent: Job[];
 }
 
 const LABELS: Record<JobType, string> = {
@@ -62,6 +71,80 @@ const BLURBS: Record<JobType, string> = {
 const buttonClass =
   "rounded-lg border border-violet-300 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-50";
 
+const DISMISS_KEY = "stash:job-report-dismissed";
+
+function articlesCompleted(n: number): string {
+  const count = n.toLocaleString();
+  return n === 1
+    ? `${count} article completed successfully`
+    : `${count} articles completed successfully`;
+}
+
+function reportStatus(status: string): string {
+  if (status === "DONE") return "finished";
+  if (status === "CANCELLED") return "stopped";
+  return "didn't finish";
+}
+
+function JobReport({ job, onDismiss }: { job: Job; onDismiss: () => void }) {
+  const failures = job.failures ?? [];
+  return (
+    <div
+      data-testid="job-report"
+      className="rounded-lg border border-slate-200 bg-white px-4 py-3"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-slate-900">
+          {LABELS[job.type]} {reportStatus(job.status)}
+        </p>
+        <button
+          type="button"
+          onClick={onDismiss}
+          data-testid="job-report-dismiss"
+          className="rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100"
+        >
+          Dismiss
+        </button>
+      </div>
+      {job.error ? (
+        <p className="mt-1 text-xs text-red-600">{job.error}</p>
+      ) : null}
+      <p data-testid="job-report-succeeded" className="mt-2 text-sm text-slate-700">
+        {articlesCompleted(job.done)}
+      </p>
+      {failures.length > 0 ? (
+        <>
+          <p className="mt-2 text-xs font-medium text-slate-600">
+            {failures.length.toLocaleString()}{" "}
+            {failures.length === 1 ? "failure" : "failures"}
+          </p>
+          <ul className="mt-1 max-h-64 space-y-2 overflow-y-auto">
+            {failures.map((failure, index) => (
+              <li
+                key={`${failure.articleId}-${index}`}
+                data-testid="job-report-failure"
+                className="text-xs"
+              >
+                <a
+                  href={`/article/${failure.articleId}`}
+                  className="font-medium text-violet-800 hover:underline"
+                >
+                  {failure.title || failure.url || "Untitled"}
+                </a>
+                <span className="mt-0.5 block break-words text-slate-500">
+                  {failure.reason}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="mt-1 text-xs text-slate-500">No failures.</p>
+      )}
+    </div>
+  );
+}
+
 function compact(n: number): string {
   if (n < 1000) return String(n);
   if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
@@ -73,7 +156,12 @@ export function JobProgress() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [dismissedId, setDismissedId] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setDismissedId(localStorage.getItem(DISMISS_KEY));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -134,18 +222,30 @@ export function JobProgress() {
     }
   }
 
+  function dismiss(id: string) {
+    localStorage.setItem(DISMISS_KEY, id);
+    setDismissedId(id);
+  }
+
   if (!state) return null;
 
   const active = state.active;
+  const processed = active ? active.done + active.failed : 0;
   const percent =
     active && active.total > 0
-      ? Math.min(100, Math.round((active.done / active.total) * 100))
+      ? Math.min(100, Math.round((processed / active.total) * 100))
       : 0;
+  const report = active
+    ? null
+    : (state.recent ?? []).find((job) => job.status !== "RUNNING") ?? null;
 
   return (
     <div data-testid="job-progress" className="mt-4 space-y-3">
       {active ? (
-        <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3">
+        <div
+          data-testid="job-active"
+          className="rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3"
+        >
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium text-violet-800">
               {LABELS[active.type]}
@@ -167,10 +267,18 @@ export function JobProgress() {
             />
           </div>
           <p data-testid="job-counts" className="mt-1 text-xs text-slate-600">
-            {active.done} of {active.total} in this run
-            {active.failed > 0 ? ` · ${active.failed} unreachable` : ""}
+            {active.done.toLocaleString()} completed
+            {active.failed > 0
+              ? ` · ${active.failed.toLocaleString()} failed`
+              : ""}
+            {` · ${active.total.toLocaleString()} in this run`}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Keeps going if you leave this page.
           </p>
         </div>
+      ) : report && report.id !== dismissedId ? (
+        <JobReport job={report} onDismiss={() => dismiss(report.id)} />
       ) : null}
 
       {(Object.keys(LABELS) as JobType[]).map((type) => {

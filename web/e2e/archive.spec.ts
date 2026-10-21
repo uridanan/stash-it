@@ -472,6 +472,127 @@ test("the jobs endpoint rejects an unknown type", async () => {
   expect(res.status()).toBe(422);
 });
 
+test("a finished job reports successes and every failure", async () => {
+  const prisma = db();
+  try {
+    const user = await prisma.user.findFirstOrThrow({ select: { id: true } });
+    await prisma.backgroundJob.deleteMany({ where: { userId: user.id } });
+    await prisma.backgroundJob.create({
+      data: {
+        userId: user.id,
+        type: "FETCH_CONTENT",
+        status: "DONE",
+        total: 3,
+        done: 2,
+        failed: 1,
+        finishedAt: new Date(),
+        failures: [
+          {
+            articleId: "art_missing",
+            title: "The page that 404'd",
+            url: "https://example.com/gone",
+            reason: "HTTP 404",
+          },
+        ],
+      },
+    });
+
+    await page.goto("/settings?tab=data");
+    await expect(page.getByTestId("job-report")).toContainText("Fetch article text finished");
+    await expect(page.getByTestId("job-report-succeeded")).toHaveText(
+      "2 articles completed successfully",
+    );
+    const failure = page.getByTestId("job-report-failure");
+    await expect(failure).toHaveCount(1);
+    await expect(failure).toContainText("The page that 404'd");
+    await expect(failure).toContainText("HTTP 404");
+
+    await prisma.backgroundJob.deleteMany({ where: { userId: user.id } });
+  } finally {
+    await prisma.$disconnect();
+  }
+});
+
+test("a fetch job keeps running after leaving the page, then lists failures", async () => {
+  const prisma = db();
+  const count = 15;
+  let userId = "";
+  const ids: string[] = [];
+  try {
+    const user = await prisma.user.findFirstOrThrow({ select: { id: true } });
+    userId = user.id;
+    await prisma.backgroundJob.deleteMany({ where: { userId } });
+    // Only these stubs are outstanding, so the run cannot wander into other
+    // pages and blow the timeout.
+    await prisma.article.deleteMany({
+      where: { userId, content: "", extractionFailed: false },
+    });
+    for (let i = 0; i < count; i++) {
+      const article = await prisma.article.create({
+        data: {
+          userId,
+          url: `http://127.0.0.1:1/stash-dead-${i}-${Date.now()}`,
+          title: `Dead link ${i}`,
+          content: "",
+        },
+        select: { id: true },
+      });
+      ids.push(article.id);
+    }
+
+    await page.goto("/settings?tab=data");
+    await page.getByTestId("job-start-FETCH_CONTENT").click();
+    await expect(page.getByTestId("job-active")).toBeVisible();
+
+    const started = await (await page.request.get("/api/jobs")).json();
+    const jobId = started.active.id as string;
+    const failedAtLeave = started.active.failed as number;
+    expect(failedAtLeave).toBeLessThan(count);
+
+    // The settings page is gone. The run has to keep counting without it.
+    await page.goto("/");
+    await expect
+      .poll(
+        async () => {
+          const body = await (await page.request.get("/api/jobs")).json();
+          const job =
+            body.active?.id === jobId
+              ? body.active
+              : body.recent.find((item: { id: string }) => item.id === jobId);
+          return (job?.failed as number | undefined) ?? 0;
+        },
+        { timeout: 90_000 },
+      )
+      .toBeGreaterThan(failedAtLeave);
+
+    await expect
+      .poll(
+        async () => {
+          const body = await (await page.request.get("/api/jobs")).json();
+          return body.active;
+        },
+        { timeout: 90_000 },
+      )
+      .toBeNull();
+
+    await page.goto("/settings?tab=data");
+    await expect(page.getByTestId("job-report-succeeded")).toHaveText(
+      "0 articles completed successfully",
+    );
+    await expect(page.getByTestId("job-report-failure")).toHaveCount(count);
+    await expect(page.getByTestId("job-report")).toContainText("Dead link 0");
+    await expect(page.getByTestId("job-report")).toContainText("Dead link 14");
+  } finally {
+    if (userId) {
+      await prisma.backgroundJob.deleteMany({ where: { userId } });
+      if (ids.length) {
+        await prisma.article.deleteMany({ where: { id: { in: ids } } });
+      }
+    }
+    await prisma.$disconnect();
+  }
+});
+
 test("a tar that is not a Stash archive is refused", async () => {
   const { pack } = await import("tar-stream");
   const { gzipSync } = await import("node:zlib");

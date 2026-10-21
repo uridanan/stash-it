@@ -8,9 +8,9 @@ import {
   estimateCost,
   fillInProgress,
   JobConflictError,
-  reapAbandonedJobs,
   recentJobs,
   requestCancel,
+  resumeRunningJobs,
   startJob,
 } from "@/lib/jobs";
 
@@ -35,9 +35,9 @@ export async function GET(req: Request) {
   const user = await requireUser(req);
   if (!user) return jsonError("Unauthorized", 401);
 
-  // A runner lives in the server process, so a restart abandons it. Clear the
-  // stale row here rather than letting it block every future job.
-  await reapAbandonedJobs(user.userId);
+  // A runner lives in the server process. If that process died, the row is
+  // still RUNNING and this starts it again — opening the page is enough.
+  await resumeRunningJobs(user.userId);
 
   const [remaining, progress, summarize, active, recent] = await Promise.all([
     Promise.all(

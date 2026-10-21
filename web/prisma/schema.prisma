@@ -172,10 +172,11 @@ model ApiToken {
 /**
  * A long-running fill-in job.
  *
- * Only the counters and lifecycle live here. What still needs doing is derived
- * from the articles themselves — empty content, null classifiedAt, null summary
- * — so a job resumes correctly after a restart instead of depending on
- * per-item queue rows that could go stale.
+ * What still needs doing is derived from the articles themselves — empty
+ * content, null classifiedAt, null summary — so a job continues after a
+ * restart instead of depending on a per-item queue. The row holds the
+ * lifecycle, the counters, and the failures from this run so the report is
+ * still there when the settings page is opened again.
  */
 model BackgroundJob {
   id     String    @id @default(cuid())
@@ -189,12 +190,26 @@ model BackgroundJob {
   failed Int @default(0)
 
   /**
+   * Articles this run could not finish. Shape:
+   * `{ articleId, title, url, reason }[]`.
+   */
+  failures Json @default("[]")
+
+  /**
    * Re-do work that is already done — a forced refetch rather than filling
    * gaps. "What is left" cannot be derived for these, because a refetched
    * article still has content, so they walk the library by cursor instead.
    */
   force  Boolean @default(false)
   cursor String?
+
+  /**
+   * Refreshed as each article is handled. A heartbeat older than a few
+   * minutes means the runner died, and another process may take the job.
+   */
+  heartbeatAt DateTime @default(now())
+  /** The process currently working this job. Null when nobody holds it. */
+  lockId      String?
 
   /** Set by the user; the runner checks it between items and stops. */
   cancelRequested Boolean @default(false)
