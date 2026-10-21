@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
@@ -73,6 +72,9 @@ export default async function TagPage({
       tagSlugs: article.tags.map((t) => t.tag.slug),
     };
   });
+  const unreadCount = unreadOnly
+    ? items.length
+    : items.filter((item) => !item.read).length;
 
   const selected = articleId
     ? await getArticle(articleId, session.user.id)
@@ -92,24 +94,18 @@ export default async function TagPage({
         article={selected}
         requestedId={articleId}
         list={
-          <>
-            <Link href="/tags" className="text-sm text-violet-700 hover:underline">
-              ← Collections
-            </Link>
-            <div className="mt-2 flex items-start justify-between gap-3">
-              <h1 className="text-xl font-bold text-slate-900">{tag.name}</h1>
+          <CollectionOrder
+            slug={tag.slug}
+            name={tag.name}
+            tagId={tag.id}
+            items={items}
+            unreadOnly={unreadOnly}
+            totalCount={totalCount}
+            unreadCount={unreadCount}
+            actions={
               <CollectionActions slug={tag.slug} name={tag.name} others={others} />
-            </div>
-            <div className="mt-4">
-              <CollectionOrder
-                slug={tag.slug}
-                name={tag.name}
-                items={items}
-                unreadOnly={unreadOnly}
-                totalCount={totalCount}
-              />
-            </div>
-          </>
+            }
+          />
         }
       />
     </AppShell>

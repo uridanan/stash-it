@@ -24,6 +24,7 @@ import {
   unwrapSentences,
   wrapSentences,
 } from "@/components/listen/wrap-sentences";
+import { announceArticleRead } from "@/components/article-read";
 import { useWakeLock } from "@/components/use-wake-lock";
 
 /**
@@ -373,10 +374,18 @@ export function ListenProvider({ children }: { children: React.ReactNode }) {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state: "archived" }),
-    }).catch(() => {
-      // Best effort: playback matters more than the flag.
-    });
-  }, []);
+    })
+      .then((res) => {
+        if (!res.ok) return;
+        // The list and the reader both painted this article as unread. Tell
+        // them now; the refresh is what makes the next navigation agree.
+        announceArticleRead(articleId, true);
+        router.refresh();
+      })
+      .catch(() => {
+        // Best effort: playback matters more than the flag.
+      });
+  }, [router]);
 
   const makeEvents = useCallback(
     (): TtsEvents => ({

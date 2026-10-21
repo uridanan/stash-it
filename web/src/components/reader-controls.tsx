@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { announceArticleRead, useAnnouncedRead } from "@/components/article-read";
 import { useListen } from "@/components/listen/listen-provider";
 import { useWakeLock } from "@/components/use-wake-lock";
 import { ArticleActions } from "@/components/article-actions";
@@ -93,16 +94,18 @@ export function ReaderControls({
     if (busy) return;
     setBusy(true);
     try {
+      const nextRead = !shownArchived;
       const res = await fetch(`/api/articles/${articleId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: archived ? "unread" : "archived" }),
+        body: JSON.stringify({ state: nextRead ? "archived" : "unread" }),
       });
       if (res.ok) {
-        if (archived) {
-          router.refresh();
-        } else {
+        announceArticleRead(articleId, nextRead);
+        if (nextRead) {
           exitReader();
+        } else {
+          router.refresh();
         }
       }
     } finally {
@@ -112,6 +115,8 @@ export function ReaderControls({
 
   const controlButton =
     "flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent";
+  // A listen can mark this article read without the page props changing yet.
+  const shownArchived = useAnnouncedRead(articleId, archived) ?? archived;
 
   return (
     <div>
@@ -163,12 +168,14 @@ export function ReaderControls({
               type="button"
               disabled={busy}
               onClick={toggleArchive}
-              title={archived ? "Mark as unread" : "Mark as read"}
-              aria-label={archived ? "Mark as unread" : "Mark as read"}
-              aria-pressed={archived}
+              title={shownArchived ? "Mark as unread" : "Mark as read"}
+              aria-label={shownArchived ? "Mark as unread" : "Mark as read"}
+              aria-pressed={shownArchived}
               data-testid="reader-read-toggle"
               className={`${controlButton} ${
-                archived ? "text-violet-600 hover:text-violet-700" : ""
+                shownArchived
+                  ? "bg-violet-600 text-white hover:bg-violet-700 hover:text-white"
+                  : "text-slate-400 ring-2 ring-inset ring-slate-300 hover:text-slate-600"
               }`}
             >
               <CheckIcon />

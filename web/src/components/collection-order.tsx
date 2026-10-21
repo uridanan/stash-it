@@ -22,6 +22,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { onArticleRead } from "@/components/article-read";
+import { CheckIcon, HeadphonesIcon } from "@/components/icons";
 import { useListen } from "@/components/listen/listen-provider";
 import {
   SelectCheckbox,
@@ -53,16 +55,22 @@ export interface CollectionItem {
 export function CollectionOrder({
   slug,
   name,
+  tagId,
   items: initialItems,
   unreadOnly,
   totalCount,
+  unreadCount,
+  actions,
 }: {
   slug: string;
   name: string;
+  tagId: string;
   items: CollectionItem[];
   unreadOnly: boolean;
-  /** Size of the collection ignoring the filter, so the toggle can say so. */
+  /** Size of the collection ignoring the filter. */
   totalCount: number;
+  unreadCount: number;
+  actions: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -74,10 +82,20 @@ export function CollectionOrder({
   // the collection's contents change underneath us.
   useEffect(() => setItems(initialItems), [initialItems]);
 
-  function toggleUnreadOnly() {
+  // A finished listen flips the check without waiting for the list to reload.
+  useEffect(() => {
+    return onArticleRead((id, read) => {
+      setItems((current) =>
+        current.map((item) => (item.id === id ? { ...item, read } : item)),
+      );
+    });
+  }, []);
+
+  function showUnread(next: boolean) {
+    if (next === unreadOnly) return;
     const params = new URLSearchParams(searchParams);
-    if (unreadOnly) params.delete("unread");
-    else params.set("unread", "1");
+    if (next) params.set("unread", "1");
+    else params.delete("unread");
     // Drop the open article: it may not survive the filter change.
     params.delete("article");
     const qs = params.toString();
@@ -132,61 +150,61 @@ export function CollectionOrder({
   return (
     <SelectionProvider>
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <p className="text-sm text-slate-500">
-            {items.length} {items.length === 1 ? "article" : "articles"}
-          </p>
-          <button
-            type="button"
-            onClick={toggleUnreadOnly}
-            aria-pressed={unreadOnly}
-            title={
-              unreadOnly
-                ? `Showing unread only — ${totalCount} in total`
-                : "Show only what is still unread"
-            }
-            data-testid="unread-filter"
-            className={`min-h-11 rounded-full border px-4 py-2 text-base transition-colors ${
-              unreadOnly
-                ? "border-violet-300 bg-violet-50 text-violet-700"
-                : "border-slate-200 text-slate-500 hover:bg-slate-50"
-            }`}
-          >
-            {unreadOnly ? `Unread only · ${totalCount} total` : "All"}
-          </button>
-        </div>
-        <SelectionToolbar
+      <div className="relative flex flex-nowrap items-center gap-0.5 overflow-x-auto">
+        <Link
+          href="/tags"
+          aria-label="Back"
+          title="Back"
+          className="flex h-12 w-10 shrink-0 items-center justify-center rounded-lg text-lg text-slate-600 hover:bg-slate-100"
+        >
+          ←
+        </Link>
+        <h1 className="min-w-0 truncate text-lg font-bold text-slate-900">
+          {name}
+        </h1>
+        <CollectionTools
+          unreadOnly={unreadOnly}
+          totalCount={totalCount}
+          unreadCount={unreadCount}
+          onShowUnread={showUnread}
+          actions={actions}
+          collection={{ id: tagId, name }}
           articles={items.map((item) => ({
             id: item.id,
             starred: item.starred,
             archived: item.read,
             tagSlugs: item.tagSlugs,
           }))}
-        >
-          {supported && items.length > 0 ? (
-          <button
-            type="button"
-            disabled={!ready}
-            onClick={() =>
-              playQueue(
-                slug,
-                name,
-                items.map((item) => item.id),
-              )
-            }
-            title={
-              ready
-                ? "Listen to this collection"
-                : "No text-to-speech voices are installed on this device"
-            }
-            data-testid="listen-all"
-            className="inline-flex min-h-12 items-center rounded-lg border border-violet-300 bg-violet-50 px-4 py-3 text-base font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-60"
-          >
-            🎧 Listen all
-          </button>
-        ) : null}
-        </SelectionToolbar>
+          onRemoved={(ids) => {
+            const gone = new Set(ids);
+            setItems((current) => current.filter((item) => !gone.has(item.id)));
+          }}
+          listen={
+            supported && items.length > 0 ? (
+              <button
+                type="button"
+                disabled={!ready}
+                onClick={() =>
+                  playQueue(
+                    slug,
+                    name,
+                    items.map((item) => item.id),
+                  )
+                }
+                title={
+                  ready
+                    ? "Listen to this collection"
+                    : "No text-to-speech voices are installed on this device"
+                }
+                aria-label="Listen to this collection"
+                data-testid="listen-all"
+                className="flex h-12 w-11 shrink-0 items-center justify-center rounded-lg text-violet-700 transition-colors hover:bg-violet-50 disabled:opacity-40"
+              >
+                <HeadphonesIcon />
+              </button>
+            ) : null
+          }
+        />
       </div>
 
       <DndContext
@@ -204,7 +222,6 @@ export function CollectionOrder({
               <SortableRow
                 key={item.id}
                 item={item}
-                position={index + 1}
                 onSendToTop={() => sendToTop(item.id)}
                 canSendToTop={index > 0}
               />
@@ -228,14 +245,112 @@ export function CollectionOrder({
   );
 }
 
+function CollectionTools({
+  unreadOnly,
+  totalCount,
+  unreadCount,
+  onShowUnread,
+  actions,
+  collection,
+  articles,
+  onRemoved,
+  listen,
+}: {
+  unreadOnly: boolean;
+  totalCount: number;
+  unreadCount: number;
+  onShowUnread: (next: boolean) => void;
+  actions: React.ReactNode;
+  collection: { id: string; name: string };
+  articles: {
+    id: string;
+    starred: boolean;
+    archived: boolean;
+    tagSlugs: string[];
+  }[];
+  onRemoved: (ids: string[]) => void;
+  listen: React.ReactNode;
+}) {
+  const selection = useSelection();
+  const choosing =
+    (selection?.selected.size ?? 0) > 0 || Boolean(selection?.selecting);
+
+  // Keep the row check in step when a listen finishes while this list is open.
+  useEffect(() => {
+    return onArticleRead((id, read) => {
+      selection?.setFlags([id], { archived: read });
+    });
+  }, [selection]);
+
+  const chip =
+    "min-h-10 shrink-0 rounded-full px-2 text-sm font-medium tabular-nums transition-colors";
+
+  return (
+    <>
+      {!choosing && (
+        <>
+          <button
+            type="button"
+            onClick={() => onShowUnread(false)}
+            aria-pressed={!unreadOnly}
+            title="Show every article in this collection"
+            data-testid="all-filter"
+            className={`${chip} ${
+              unreadOnly
+                ? "text-slate-500 hover:bg-slate-100"
+                : "bg-violet-600 text-white"
+            }`}
+          >
+            All({totalCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => onShowUnread(true)}
+            aria-pressed={unreadOnly}
+            title="Show only what is still unread"
+            data-testid="unread-filter"
+            className={`${chip} ${
+              unreadOnly
+                ? "bg-violet-600 text-white"
+                : "text-slate-500 hover:bg-slate-100"
+            }`}
+          >
+            Unread({unreadCount})
+          </button>
+        </>
+      )}
+      {!choosing && actions}
+      <SelectionToolbar
+        articles={articles}
+        collection={collection}
+        onRemovedFromCollection={onRemoved}
+      >
+        {listen}
+      </SelectionToolbar>
+    </>
+  );
+}
+
+function ReadMark({ read }: { read: boolean }) {
+  return (
+    <span
+      role="img"
+      aria-label={read ? "Read" : "Unread"}
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+        read ? "bg-violet-600 text-white" : "bg-white ring-2 ring-inset ring-slate-300"
+      }`}
+    >
+      {read ? <CheckIcon className="h-4 w-4" /> : null}
+    </span>
+  );
+}
+
 function SortableRow({
   item,
-  position,
   onSendToTop,
   canSendToTop,
 }: {
   item: CollectionItem;
-  position: number;
   onSendToTop: () => void;
   canSendToTop: boolean;
 }) {
@@ -245,7 +360,9 @@ function SortableRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
   const selected = searchParams.get("article") === item.id;
-  const picked = useSelection()?.selected.has(item.id) ?? false;
+  const selection = useSelection();
+  const picked = selection?.selected.has(item.id) ?? false;
+  const read = selection?.flags[item.id]?.archived ?? item.read;
   const press = useLongPressSelect(item.id);
 
   /**
@@ -271,8 +388,8 @@ function SortableRow({
       onPointerDown={press.rowProps.onPointerDown}
       onClickCapture={press.rowProps.onClickCapture}
       onContextMenu={press.rowProps.onContextMenu}
-      className={`flex items-center gap-2 border-b border-slate-100 py-3 ${press.rowProps.className} ${
-        isDragging ? "relative z-10 bg-white opacity-90 shadow-md" : ""
+      className={`group relative flex items-start gap-2 border-b border-slate-100 py-3 ${press.rowProps.className} ${
+        isDragging ? "z-10 bg-white opacity-90 shadow-md" : ""
       } ${selected ? "lg:-mx-3 lg:rounded-lg lg:border-transparent lg:bg-violet-50 lg:px-3" : ""} ${
         picked ? "max-lg:bg-violet-200/70 lg:bg-violet-50/60" : ""
       }`}
@@ -283,33 +400,37 @@ function SortableRow({
         {...listeners}
         aria-label={`Reorder ${item.title}`}
         data-testid="drag-handle"
-        className="cursor-grab touch-none rounded px-1 text-slate-400 hover:text-slate-600 active:cursor-grabbing"
+        className="mt-1 cursor-grab touch-none self-start rounded px-1 text-slate-400 hover:text-slate-600 active:cursor-grabbing"
       >
         ⠿
       </button>
 
-      <span className="w-6 shrink-0 text-xs tabular-nums text-slate-400">
-        {position}
-      </span>
-
-      <SelectCheckbox articleId={item.id} />
+      <ReadMark read={read} />
 
       <div className="min-w-0 flex-1">
         <Link
           href={`/article/${item.id}`}
           onClick={handleOpen}
-          className="block truncate text-sm font-medium text-slate-900 hover:text-violet-700"
+          className="text-lg font-semibold leading-snug text-slate-900 hover:text-violet-700"
         >
           {item.title}
         </Link>
-        <p className="mt-0.5 truncate text-xs text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           {item.siteName ? `${item.siteName} · ` : ""}
           {item.readingMinutes} min
-          {item.read ? " · read" : ""}
           {item.wontNarrate ? " · skipped when listening" : ""}
         </p>
       </div>
 
+      <div className="flex shrink-0 items-center">
+        <div className="pointer-events-none min-w-0 max-lg:hidden w-0 overflow-hidden opacity-0 transition-all lg:group-hover:pointer-events-auto lg:group-hover:w-16 lg:group-hover:overflow-visible lg:group-hover:opacity-100 lg:group-focus-within:pointer-events-auto lg:group-focus-within:w-16 lg:group-focus-within:overflow-visible lg:group-focus-within:opacity-100">
+          <div className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 shadow-sm">
+            <SelectCheckbox
+              articleId={item.id}
+              className="flex h-12 w-12 shrink-0 items-center justify-center"
+            />
+          </div>
+        </div>
       <button
         type="button"
         onClick={onSendToTop}
@@ -321,6 +442,7 @@ function SortableRow({
       >
         ↑ Top
       </button>
+      </div>
     </li>
   );
 }

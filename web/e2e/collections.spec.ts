@@ -446,10 +446,10 @@ test("a collection can be filtered to unread only", async () => {
   await page.getByTestId("unread-filter").click();
   await expect.poll(() => page.url()).toContain("unread=1");
   await expect(page.getByTestId("collection-row")).toHaveCount(1);
-  // The toggle still reports the size of the whole collection.
-  await expect(page.getByTestId("unread-filter")).toContainText("2 total");
+  await expect(page.getByTestId("all-filter")).toContainText("All(2)");
+  await expect(page.getByTestId("unread-filter")).toContainText("Unread(1)");
 
-  await page.getByTestId("unread-filter").click();
+  await page.getByTestId("all-filter").click();
   await expect(page.getByTestId("collection-row")).toHaveCount(2);
   await setRead(page, ids[0], false);
 });

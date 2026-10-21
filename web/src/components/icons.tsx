@@ -136,6 +136,16 @@ export function DownloadIcon(props: IconProps) {
   );
 }
 
+/** Two overlapping pages. */
+export function CopyIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="8" y="8" width="11" height="12" rx="1.5" />
+      <path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4H5.5A1.5 1.5 0 0 0 4 5.5v10A1.5 1.5 0 0 0 5.5 17H8" />
+    </Svg>
+  );
+}
+
 export function HeadphonesIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -192,6 +202,16 @@ export function TagIcon(props: IconProps) {
     <Svg {...props}>
       <path d="M3.5 12.2V5.2A1.7 1.7 0 0 1 5.2 3.5h7l8.3 8.3-6.7 6.7z" />
       <circle cx="8.2" cy="8.2" r="1.15" />
+    </Svg>
+  );
+}
+
+/** A tag with the hole crossed out: take the article out of a collection. */
+export function TagOffIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3.5 12.2V5.2A1.7 1.7 0 0 1 5.2 3.5h7l8.3 8.3-6.7 6.7z" />
+      <path d="M6.2 8.2h4" />
     </Svg>
   );
 }

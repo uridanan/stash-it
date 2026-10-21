@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { onArticleRead } from "@/components/article-read";
 import { SelectCheckbox, useLongPressSelect, useSelection } from "@/components/article-selection";
 import { TrashIcon } from "@/components/icons";
 import { TagChips } from "@/components/tag-chips";
@@ -36,6 +37,13 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
   const archived = flag?.archived ?? article.state === "ARCHIVED";
   const picked = selection?.selected.has(article.id) ?? false;
   const press = useLongPressSelect(article.id);
+
+  // A finished listen marks the article read without going through this row.
+  useEffect(() => {
+    return onArticleRead((id, read) => {
+      if (id === article.id) selection?.setFlags([article.id], { archived: read });
+    });
+  }, [article.id, selection]);
 
   /**
    * Desktop split view (lg+): select into the reader pane instead of

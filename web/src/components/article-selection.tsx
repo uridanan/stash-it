@@ -25,6 +25,7 @@ import {
   SpinnerIcon,
   StarIcon,
   TagIcon,
+  TagOffIcon,
   TrashIcon,
 } from "@/components/icons";
 
@@ -485,19 +486,36 @@ function CollectionPicker({
 export function SelectionToolbar({
   articles,
   children,
+  collection,
+  onRemovedFromCollection,
 }: {
   articles: SelectionTarget[];
   children: React.ReactNode;
+  /** Set on a collection page, where the selection can leave that collection. */
+  collection?: { id: string; name: string };
+  onRemovedFromCollection?: (ids: string[]) => void;
 }) {
-  return <SelectionActions articles={articles}>{children}</SelectionActions>;
+  return (
+    <SelectionActions
+      articles={articles}
+      collection={collection}
+      onRemovedFromCollection={onRemovedFromCollection}
+    >
+      {children}
+    </SelectionActions>
+  );
 }
 
 function SelectionActions({
   articles,
   children,
+  collection,
+  onRemovedFromCollection,
 }: {
   articles: SelectionTarget[];
   children: React.ReactNode;
+  collection?: { id: string; name: string };
+  onRemovedFromCollection?: (ids: string[]) => void;
 }) {
   const selection = useSelection();
   const listen = useListen();
@@ -792,8 +810,43 @@ function SelectionActions({
     }
   }
 
+  async function removeFromCollection() {
+    if (!selection || !collection || busy || ids.length === 0) return;
+    setBusy("untag");
+    setError(null);
+    try {
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          const res = await fetch(
+            `/api/articles/${id}/tags?tagId=${encodeURIComponent(collection.id)}`,
+            { method: "DELETE" },
+          );
+          return res.ok;
+        }),
+      );
+      const removed = ids.filter((_, index) => results[index]);
+      if (removed.length === 0) {
+        setError("Could not remove those from this collection");
+        return;
+      }
+      onRemovedFromCollection?.(removed);
+      if (removed.length === ids.length) selection.clear();
+      else {
+        for (const id of removed) selection.toggle(id);
+      }
+      if (removed.length < ids.length) {
+        setError("Could not remove some articles from this collection");
+      }
+      router.refresh();
+    } catch {
+      setError("Network error — try again");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
-    <div className="relative z-30 ml-auto flex min-w-0 items-center">
+    <div className="relative z-30 ml-auto flex min-w-0 shrink-0 items-center">
       {choosing ? (
       <div
         data-testid="selection-bar"
@@ -849,6 +902,19 @@ function SelectionActions({
                 />
               )}
             </Menu>
+            {collection ? (
+              <button
+                type="button"
+                disabled={busy !== null || count === 0}
+                onClick={() => void removeFromCollection()}
+                title={`Remove from ${collection.name}`}
+                aria-label={`Remove from ${collection.name}`}
+                data-testid="selection-remove-collection"
+                className={actionButton}
+              >
+                {busy === "untag" ? <SpinnerIcon /> : <TagOffIcon />}
+              </button>
+            ) : null}
             {count === 1 && listen.supported ? (
               <button
                 type="button"
