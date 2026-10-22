@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
 import { buildEpub } from "@/lib/epub";
 import { loadExportArticle } from "@/lib/export-article";
-import { MailError, mailConfig, sendMail } from "@/lib/mail";
+import { MailError, loadMailConfig, sendMail } from "@/lib/mail";
 import { articleFilename } from "@/lib/markdown";
 import { sourceUrl } from "@/lib/source-url";
 
@@ -26,9 +26,9 @@ export async function POST(req: Request, ctx: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!mailConfig()) {
+  if (!(await loadMailConfig())) {
     return NextResponse.json(
-      { error: "This app has no mail transport configured — see SMTP_* in the README" },
+      { error: "The sending account is not configured" },
       { status: 503 },
     );
   }

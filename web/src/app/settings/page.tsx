@@ -55,8 +55,8 @@ export default async function SettingsPage({
 
       {active === "ai" && (
         <Panel
-          title="AI summaries"
-          blurb="Summarize saved articles in English — the news item plus the key insights the article states. Bring your own API key."
+          title="AI"
+          blurb="Summarize saved articles in English — the news item plus the key insights the article states."
         >
           <AiSettings />
         </Panel>
@@ -92,7 +92,7 @@ export default async function SettingsPage({
       {active === "data" && (
         <Panel
           title="Your data"
-          blurb="Take a backup, restore one, or bring a library across from Instapaper."
+          blurb="Export your library, or import a Stash-it export or a CSV."
         >
           <DataTransfer />
         </Panel>

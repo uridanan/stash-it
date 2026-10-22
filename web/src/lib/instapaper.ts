@@ -196,6 +196,18 @@ function titleFor(title: string, url: string): string {
   }
 }
 
+/** True when the start of an upload is a CSV rather than gzip, tar, or NDJSON. */
+export function looksLikeCsv(head: Uint8Array): boolean {
+  if (head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) return false;
+  const text = new TextDecoder("utf-8", { fatal: false })
+    .decode(head.subarray(0, 200))
+    .replace(/^\uFEFF/, "")
+    .trimStart();
+  if (!text || text.startsWith("{") || text.startsWith("[")) return false;
+  const first = text.split(/\r?\n/, 1)[0] ?? "";
+  return /(^|,)\s*url\s*(,|$)/i.test(first);
+}
+
 export function parseInstapaperCsv(text: string): InstapaperParseResult {
   const table = parseCsv(text);
   const rows: InstapaperRow[] = [];

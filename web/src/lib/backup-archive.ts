@@ -104,8 +104,21 @@ async function* articleRows(userId: string, tagId?: string) {
 export async function* exportArchiveEntries(
   userId: string,
   now: Date,
-  options: { includeContent: boolean; tagId?: string },
+  options: {
+    includeContent: boolean;
+    /** Link list: url, title and the rest of the bibliographic fields. */
+    includeLinks?: boolean;
+    /** Reading state, stars, and collections. */
+    includeStatus?: boolean;
+    /** The account's preferences in stash.json. */
+    includeSettings?: boolean;
+    tagId?: string;
+  },
 ): AsyncGenerator<ArchiveEntry> {
+  const includeLinks = options.includeLinks !== false;
+  const includeStatus = options.includeStatus !== false;
+  const includeSettings = options.includeSettings !== false;
+  const writeLinks = includeLinks || includeStatus || options.includeContent;
   const scope = options.tagId
     ? { userId, tags: { some: { tagId: options.tagId } } }
     : { userId };
@@ -120,6 +133,8 @@ export async function* exportArchiveEntries(
         aiPrompt: true,
         summaryView: true,
         customTopics: true,
+        excludedTopics: true,
+        importTagsOverride: true,
         markReadOnListen: true,
       },
     }),
@@ -135,10 +150,10 @@ export async function* exportArchiveEntries(
     app: "stash",
     exportedAt: now.toISOString(),
     includesContent: options.includeContent,
-    counts: { articles, tags },
+    counts: { articles, tags: includeStatus ? tags : 0 },
     // aiApiKey is absent by construction: it is not in the select above.
-    settings: user ?? null,
-    tags: tagRows,
+    settings: includeSettings ? (user ?? null) : null,
+    tags: includeStatus ? tagRows : [],
   };
   yield { name: MANIFEST_ENTRY, body: `${JSON.stringify(manifest, null, 2)}\n` };
 
@@ -174,7 +189,22 @@ export async function* exportArchiveEntries(
         source: m.source,
       })),
     };
-    links += encodeLine(link as unknown as TransferRecord);
+    if (writeLinks) {
+      if (!includeStatus) {
+        link.state = "UNREAD";
+        link.starred = false;
+        link.readAt = null;
+        link.tags = [];
+      }
+      if (!includeLinks) {
+        link.siteName = null;
+        link.author = null;
+        link.excerpt = null;
+        link.leadImageUrl = null;
+        link.summary = null;
+      }
+      links += encodeLine(link as unknown as TransferRecord);
+    }
 
     if (options.includeContent && row.content) {
       bodies.push({

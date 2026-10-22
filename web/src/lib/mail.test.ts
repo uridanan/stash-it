@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { looksLikeEmail, mailConfig, mailSender } from "@/lib/mail";
+import {
+  looksLikeEmail,
+  mailAccountView,
+  mailConfig,
+  mailSender,
+  resolveMailConfig,
+  type StoredSmtp,
+} from "@/lib/mail";
 
 const KEYS = [
   "SMTP_HOST",
@@ -98,6 +105,98 @@ describe("mailConfig", () => {
     process.env.SMTP_HOST = "   ";
     process.env.SMTP_FROM = "stash@example.com";
     expect(mailConfig()).toBeNull();
+  });
+});
+
+const emptySmtp = (): StoredSmtp => ({
+  smtpHost: null,
+  smtpPort: null,
+  smtpUser: null,
+  smtpPassword: null,
+  smtpFrom: null,
+});
+
+describe("resolveMailConfig", () => {
+  it("uses the environment when Admin has not saved an account", () => {
+    process.env.SMTP_HOST = "smtp.example.com";
+    process.env.SMTP_FROM = "stash@example.com";
+    expect(resolveMailConfig(emptySmtp())?.from).toBe("stash@example.com");
+    expect(resolveMailConfig(null)?.host).toBe("smtp.example.com");
+  });
+
+  it("prefers a complete account saved in Admin", () => {
+    process.env.SMTP_HOST = "smtp.example.com";
+    process.env.SMTP_FROM = "stash@example.com";
+    process.env.SMTP_PASSWORD = "env-secret";
+    const config = resolveMailConfig({
+      smtpHost: "smtp.gmail.com",
+      smtpPort: 465,
+      smtpUser: "sender@gmail.com",
+      smtpPassword: "app-password",
+      smtpFrom: "sender@gmail.com",
+    });
+    expect(config).toEqual({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      user: "sender@gmail.com",
+      pass: "app-password",
+      from: "sender@gmail.com",
+      dryRun: false,
+    });
+  });
+
+  it("keeps the environment when the saved account has no host", () => {
+    process.env.SMTP_HOST = "smtp.example.com";
+    process.env.SMTP_FROM = "stash@example.com";
+    expect(
+      resolveMailConfig({ ...emptySmtp(), smtpFrom: "sender@gmail.com" })?.from,
+    ).toBe("stash@example.com");
+  });
+
+  it("accepts a saved address alone while dry-run is on", () => {
+    process.env.SMTP_TRANSPORT = "json";
+    process.env.SMTP_FROM = "stash-e2e@example.com";
+    const config = resolveMailConfig({
+      ...emptySmtp(),
+      smtpFrom: "sender@gmail.com",
+    });
+    expect(config?.dryRun).toBe(true);
+    expect(config?.from).toBe("sender@gmail.com");
+    expect(config?.port).toBe(587);
+  });
+});
+
+describe("mailAccountView", () => {
+  it("reports the environment account, including its password", () => {
+    process.env.SMTP_HOST = "smtp.example.com";
+    process.env.SMTP_PORT = "2525";
+    process.env.SMTP_USER = "sender@example.com";
+    process.env.SMTP_PASSWORD = "env-secret";
+    process.env.SMTP_FROM = "sender@example.com";
+    expect(mailAccountView(emptySmtp())).toEqual({
+      from: "sender@example.com",
+      host: "smtp.example.com",
+      port: 2525,
+      user: "sender@example.com",
+      password: "env-secret",
+      source: "environment",
+    });
+  });
+
+  it("reports a saved account ahead of the environment", () => {
+    process.env.SMTP_HOST = "smtp.example.com";
+    process.env.SMTP_FROM = "env@example.com";
+    process.env.SMTP_PASSWORD = "env-secret";
+    expect(
+      mailAccountView({
+        smtpHost: "smtp.gmail.com",
+        smtpPort: 465,
+        smtpUser: "saved@example.com",
+        smtpPassword: "saved-secret",
+        smtpFrom: "saved@example.com",
+      }).source,
+    ).toBe("saved");
   });
 });
 

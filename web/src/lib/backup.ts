@@ -106,6 +106,8 @@ export async function* exportRecords(
       aiPrompt: true,
       summaryView: true,
       customTopics: true,
+      excludedTopics: true,
+      importTagsOverride: true,
       markReadOnListen: true,
     },
   });
@@ -394,6 +396,14 @@ export class Importer {
         aiPrompt: record.aiPrompt,
         summaryView: record.summaryView,
         customTopics: record.customTopics ?? [],
+        ...(Array.isArray(record.excludedTopics)
+          ? { excludedTopics: record.excludedTopics }
+          : {}),
+        ...(record.importTagsOverride === "assign" ||
+        record.importTagsOverride === "import" ||
+        record.importTagsOverride === null
+          ? { importTagsOverride: record.importTagsOverride }
+          : {}),
         markReadOnListen: record.markReadOnListen ?? false,
       },
     });

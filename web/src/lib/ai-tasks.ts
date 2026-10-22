@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/db";
 import { classifyTopics } from "@/lib/classify";
 import { generateSummary } from "@/lib/summarize";
+import { getSystemSettings } from "@/lib/system-settings";
 import { attachTags, ensureTags } from "@/lib/tags";
+import { topicVocabulary } from "@/lib/taxonomy";
 
 /**
  * The two AI tasks, each standalone.
@@ -23,22 +25,33 @@ export interface AiSettings {
   aiModel: string;
   aiApiKey: string | null;
   aiPrompt: string | null;
-  customTopics: string[];
+  /** Defaults, minus this person's removals, plus their additions. */
+  topics: string[];
 }
 
 export async function loadAiSettings(userId: string): Promise<AiSettings | null> {
-  const settings = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      aiSummariesEnabled: true,
-      aiModel: true,
-      aiApiKey: true,
-      aiPrompt: true,
-      customTopics: true,
-    },
-  });
+  const [settings, system] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        aiSummariesEnabled: true,
+        customTopics: true,
+        excludedTopics: true,
+      },
+    }),
+    getSystemSettings(),
+  ]);
   if (!settings) return null;
-  return settings;
+  return {
+    aiSummariesEnabled: settings.aiSummariesEnabled,
+    aiModel: system.aiModel,
+    aiApiKey: system.aiApiKey,
+    aiPrompt: system.aiPrompt,
+    topics: topicVocabulary(settings.customTopics ?? [], {
+      base: system.defaultTopics ?? [],
+      excluded: settings.excludedTopics ?? [],
+    }),
+  };
 }
 
 export function aiUsable(settings: AiSettings | null): settings is AiSettings {
@@ -67,16 +80,30 @@ export async function classifyArticle(
   settings?: AiSettings | null,
 ): Promise<TaskResult> {
   const resolved = settings ?? (await loadAiSettings(userId));
-  if (!aiUsable(resolved)) return { ok: false, reason: "AI is not configured" };
+  // Tagging needs a key. The summaries switch only gates summaries.
+  if (!resolved?.aiApiKey) return { ok: false, reason: "AI is not configured" };
 
   const article = await articleFor(articleId, userId);
   if (!article) return { ok: false, reason: "no article text to classify" };
 
+  if (resolved.topics.length === 0) {
+    await prisma.article.update({
+      where: { id: articleId },
+      data: { classifiedAt: new Date() },
+    });
+    return { ok: true };
+  }
+
   try {
     const topics = await classifyTopics(article, {
       model: resolved.aiModel,
-      apiKey: resolved.aiApiKey!,
-      customTopics: resolved.customTopics,
+      apiKey: resolved.aiApiKey,
+      topics: resolved.topics,
+    });
+    // Replace the previous automatic topics so a second pass does not
+    // accumulate labels the model no longer chose. Manual tags stay.
+    await prisma.articleTag.deleteMany({
+      where: { articleId, source: "AUTO", tag: { kind: "TOPIC" } },
     });
     if (topics.length > 0) {
       const ensured = await ensureTags(

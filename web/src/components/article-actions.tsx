@@ -11,11 +11,12 @@ import {
   RefreshIcon,
   SparkleIcon,
   SpinnerIcon,
+  TagIcon,
   TrashIcon,
 } from "@/components/icons";
 
 /**
- * The reader's overflow menu: refetch, summarize, send, delete.
+ * The reader's overflow menu: refetch, summarize, auto-tag, send, delete.
  *
  * These are the escape hatch the import deliberately leaves open. An import
  * never overwrites an article it already has, so correcting one is done from
@@ -41,7 +42,7 @@ export function ArticleActions({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<
-    null | "refetch" | "summary" | "delete" | "kindle"
+    null | "refetch" | "summary" | "tag" | "delete" | "kindle"
   >(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +74,7 @@ export function ArticleActions({
     setError(null);
   }, [articleId]);
 
-  async function post(path: string, kind: "refetch" | "summary") {
+  async function post(path: string, kind: "refetch" | "summary" | "tag") {
     setBusy(kind);
     setError(null);
     setNote(null);
@@ -165,6 +166,16 @@ export function ArticleActions({
               onSelect={() => {
                 close();
                 void post(`/api/articles/${articleId}/summary`, "summary");
+              }}
+            />
+            <MenuItem
+              icon={<TagIcon className="h-6 w-6" />}
+              label={busy === "tag" ? "Tagging…" : "Auto-tag"}
+              disabled={busy !== null}
+              testId="auto-tag-article"
+              onSelect={() => {
+                close();
+                void post(`/api/articles/${articleId}/classify`, "tag");
               }}
             />
             {kindleConfigured && (

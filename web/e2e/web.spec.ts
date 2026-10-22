@@ -1,6 +1,7 @@
+import { PrismaClient } from "@prisma/client";
 import { test, expect, type Page } from "@playwright/test";
 
-import { E2E_BASE_URL } from "./config";
+import { E2E_BASE_URL, E2E_DATABASE_URL } from "./config";
 
 const ARTICLE_URL = `${E2E_BASE_URL}/test-article.html`;
 const ARTICLE_TITLE = "The Quiet Revival of Slow Reading";
@@ -280,6 +281,9 @@ test("settings is tabbed, and the open tab lives in the URL", async () => {
     "page",
   );
   await expect(page.getByTestId("ai-settings")).toBeVisible();
+  await expect(page.getByTestId("nav-admin")).toBeVisible();
+  await expect(page.getByLabel("Model")).toHaveCount(0);
+  await expect(page.getByLabel("API key")).toHaveCount(0);
   await expect(page.getByTestId("kindle-email")).toHaveCount(0);
   await expect(page.getByLabel("Token name")).toHaveCount(0);
 
@@ -345,32 +349,61 @@ test("API token lifecycle in settings", async () => {
   await expect(page.getByText("e2e test token")).toHaveCount(0);
 });
 
+test("settings tag list removes a default and adds one", async () => {
+  await page.goto("/settings?tab=ai");
+  const technology = page.getByTestId("topic-chip").filter({ hasText: "Technology" });
+  await expect(technology).toBeVisible();
+  await technology.getByRole("button", { name: "Remove Technology" }).click();
+  await page.getByTestId("topic-add-input").fill("Woodworking");
+  await page.getByTestId("topic-add").click();
+  await page.getByTestId("ai-settings-save").click();
+  await expect(page.getByTestId("ai-settings-status")).toHaveText("Saved");
+
+  await page.reload();
+  await expect(
+    page.getByTestId("topic-chip").filter({ hasText: "Technology" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByTestId("topic-chip").filter({ hasText: "Woodworking" }),
+  ).toBeVisible();
+});
+
 test("AI summary settings roundtrip and generate button error path", async () => {
-  // Configure AI summaries with a bogus key
   await page.goto("/settings?tab=ai");
   const section = page.getByTestId("ai-settings");
   await expect(section).toBeVisible();
+  await expect(section.getByLabel("Model")).toHaveCount(0);
+  await expect(section.getByLabel("API key")).toHaveCount(0);
+  await expect(section.getByLabel("Summary prompt")).toHaveCount(0);
   const toggle = section.getByTestId("ai-enabled-toggle");
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "true");
-  await section.getByLabel("Model").selectOption("gemini-3.1-pro-preview");
-  await section.getByLabel("API key").fill("e2e-bogus-key-1234");
   await section.getByTestId("ai-settings-save").click();
   await expect(section.getByTestId("ai-settings-status")).toHaveText("Saved");
 
-  // Settings persist; the key is masked, never echoed back
   await page.reload();
   const reloaded = page.getByTestId("ai-settings");
   await expect(reloaded.getByTestId("ai-enabled-toggle")).toHaveAttribute(
     "aria-checked",
     "true",
   );
-  await expect(reloaded.getByLabel("API key")).toHaveValue("");
-  await expect(reloaded.getByLabel("API key")).toHaveAttribute(
-    "placeholder",
-    /…1234/,
-  );
+
+  // The key lives on the system. The dev login can open Admin while
+  // AUTH_DEV_LOGIN is on, which this server sets.
+  const prisma = new PrismaClient({ datasourceUrl: E2E_DATABASE_URL });
+  try {
+    await prisma.systemSettings.update({
+      where: { id: "system" },
+      data: { aiApiKey: "e2e-bogus-key-1234", aiModel: "gemini-3.1-pro-preview" },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByTestId("admin-ai")).toBeVisible();
 
   // Reader offers "Summarize"; a bogus key surfaces a provider error
   await page.goto("/");
@@ -381,7 +414,15 @@ test("AI summary settings roundtrip and generate button error path", async () =>
     .filter({ hasText: ARTICLE_TITLE })
     .getByRole("link", { name: ARTICLE_TITLE })
     .click();
-  const generate = page.getByRole("button", { name: /summarize/i });
+  await page.getByTestId("article-actions").click();
+  const items = page.getByTestId("article-actions-panel").getByRole("menuitem");
+  const labels = await items.allTextContents();
+  const summarizeAt = labels.findIndex((label) => label.includes("Summarize"));
+  const autoTagAt = labels.findIndex((label) => label.includes("Auto-tag"));
+  expect(autoTagAt).toBe(summarizeAt + 1);
+  await page.keyboard.press("Escape");
+
+  const generate = page.getByRole("button", { name: "✨ Summarize" });
   await expect(generate).toBeVisible({ timeout: 20_000 });
   await generate.click();
   await expect(page.getByText(/Gemini: HTTP \d+/)).toBeVisible({

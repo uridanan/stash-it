@@ -1,6 +1,7 @@
 import { auth, signOut } from "@/auth";
 import { Sidebar, type ActiveNav, type BarTitle } from "@/components/sidebar";
 import { ListenProvider } from "@/components/listen/listen-provider";
+import { isAdminEmail } from "@/lib/admin";
 import { libraryCounts } from "@/lib/articles";
 import { listTags } from "@/lib/tags";
 
@@ -68,6 +69,7 @@ export async function AppShell({
           email: user?.email ?? null,
           image: user?.image ?? null,
         }}
+        showAdmin={isAdminEmail(user?.email)}
         signOutAction={signOutAction}
       />
       <main

@@ -36,6 +36,10 @@ export interface SettingsRecord {
   aiPrompt: string | null;
   summaryView: string;
   customTopics: string[];
+  /** Defaults this person turned off. Absent in backups written before that. */
+  excludedTopics?: string[];
+  /** "assign" | "import" | null. Absent when they follow the system default. */
+  importTagsOverride?: string | null;
   markReadOnListen: boolean;
 }
 

@@ -27,6 +27,19 @@ describe("topicVocabulary", () => {
   it("ignores blank custom topics", () => {
     expect(topicVocabulary(["  ", ""])).toEqual([...BUILT_IN_TOPICS]);
   });
+
+  it("drops defaults the person removed and still appends their own", () => {
+    const vocab = topicVocabulary(["Woodworking"], { excluded: ["Sport"] });
+    expect(vocab).not.toContain("Sport");
+    expect(vocab).toContain("Woodworking");
+    expect(vocab).toContain("Technology");
+  });
+
+  it("uses the admin list as the base", () => {
+    expect(
+      topicVocabulary(["Boards"], { base: ["News"], excluded: ["News"] }),
+    ).toEqual(["Boards"]);
+  });
 });
 
 describe("parseTopics", () => {

@@ -13,6 +13,7 @@ export type ActiveNav =
   | "starred"
   | "tags"
   | "settings"
+  | "admin"
   | "install"
   | "none";
 
@@ -104,6 +105,8 @@ interface SidebarProps {
   activeTagSlug?: string;
   /** Replaces "Stash" in the phone title bar. */
   barTitle?: BarTitle;
+  /** Admin is a single account. Everyone else gets no link and no route. */
+  showAdmin?: boolean;
 }
 
 function Avatar({ user, className }: { user: SidebarUser; className: string }) {
@@ -140,6 +143,14 @@ function SettingsIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 shrink-0" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 13.5a1.6 1.6 0 0 0 .3 1.8l.1.1a1.9 1.9 0 1 1-2.7 2.7l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a1.9 1.9 0 1 1-3.8 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a1.9 1.9 0 1 1-2.7-2.7l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a1.9 1.9 0 1 1 0-3.8h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a1.9 1.9 0 1 1 2.7-2.7l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a1.9 1.9 0 1 1 3.8 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a1.9 1.9 0 1 1 2.7 2.7l-.1.1a1.6 1.6 0 0 0-.3 1.8V9c.1.7.8 1.2 1.5 1.3H21a1.9 1.9 0 1 1 0 3.8h-.1a1.6 1.6 0 0 0-1.5.4Z" />
+    </svg>
+  );
+}
+
+function AdminIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 shrink-0" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.5 19 6.2v5.3c0 4.2-2.8 7.2-7 8.9-4.2-1.7-7-4.7-7-8.9V6.2L12 3.5Z" />
     </svg>
   );
 }
@@ -294,6 +305,7 @@ function SidebarContent({
   counts,
   tags = [],
   activeTagSlug,
+  showAdmin = false,
   collapsed,
   onExpand,
   onNavigate,
@@ -402,6 +414,23 @@ function SidebarContent({
           <SettingsIcon />
           {!collapsed && <span>Settings</span>}
         </Link>
+        {showAdmin ? (
+          <Link
+            href="/admin"
+            onClick={onNavigate}
+            title={collapsed ? "Admin" : undefined}
+            data-testid="nav-admin"
+            aria-current={active === "admin" ? "page" : undefined}
+            className={`mt-1 flex min-h-12 items-center gap-3 rounded-lg px-2.5 py-3 text-base transition-colors ${
+              active === "admin"
+                ? "bg-violet-50 font-medium text-violet-700"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <AdminIcon />
+            {!collapsed && <span>Admin</span>}
+          </Link>
+        ) : null}
         <div
           className={`mt-1 flex items-center ${collapsed ? "justify-center gap-0.5" : "gap-1 pl-1"}`}
         >

@@ -28,7 +28,7 @@ export function Toggle({
   testId?: string;
 }) {
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-start gap-2">
       <button
         type="button"
         role="switch"
@@ -37,14 +37,14 @@ export function Toggle({
         disabled={disabled}
         data-testid={testId}
         onClick={() => onChange(!checked)}
-        className={`relative mt-0.5 inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 ${
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 ${
           checked ? "bg-violet-600" : "bg-slate-300"
         }`}
       >
         <span
           aria-hidden
-          className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${
-            checked ? "translate-x-7" : "translate-x-1"
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-4" : "translate-x-0.5"
           }`}
         />
       </button>
@@ -57,7 +57,7 @@ export function Toggle({
           // its own — the switch above carries the accessible name.
           aria-hidden
           tabIndex={-1}
-          className="text-left text-base font-medium text-slate-900 disabled:opacity-50"
+          className="text-left text-sm font-medium leading-5 text-slate-900 disabled:opacity-50"
         >
           {label}
         </button>

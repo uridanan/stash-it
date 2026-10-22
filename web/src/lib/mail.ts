@@ -1,14 +1,16 @@
 import nodemailer from "nodemailer";
 
 /**
- * Outbound mail.
+ * Outbound mail for Send to Kindle.
  *
- * The transport is environment configuration, not user data: the credentials
- * belong to whoever runs the app, and putting them in the database would mean
- * exporting them in a backup or explaining why they are the one setting that
- * is not. The *sender address* is read back out and shown in settings, because
- * Amazon only accepts a Send-to-Kindle mail from an address you have approved
- * in your own Amazon account — you cannot approve what you cannot see.
+ * The account is a system setting, edited in Admin. SMTP_* in the environment
+ * is the fallback when Admin has not saved one, which is also how the e2e
+ * suite points at a dry-run transport. The password is never returned by the
+ * API and is not part of a library backup.
+ *
+ * The From address is shown in Settings, because Amazon only accepts mail
+ * from an address on your Approved Personal Document E-mail List — you cannot
+ * approve what you cannot see.
  *
  * `SMTP_TRANSPORT=json` builds the message and returns it instead of
  * delivering it. That is what the e2e suite runs with: it exercises the whole
@@ -32,6 +34,11 @@ export class MailError extends Error {}
 function env(name: string): string | null {
   const value = process.env[name]?.trim();
   return value ? value : null;
+}
+
+function clean(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 /**
@@ -61,6 +68,99 @@ export function mailConfig(): MailConfig | null {
   };
 }
 
+/** Account saved in Admin. Empty strings are treated as unset. */
+export interface StoredSmtp {
+  smtpHost: string | null;
+  smtpPort: number | null;
+  smtpUser: string | null;
+  smtpPassword: string | null;
+  smtpFrom: string | null;
+}
+
+/**
+ * Admin's account when it is complete, otherwise the environment.
+ * A saved From address without a host is incomplete, so the environment
+ * still applies — except in dry-run, which only needs the address.
+ */
+export function resolveMailConfig(
+  stored: StoredSmtp | null | undefined,
+): MailConfig | null {
+  const from = clean(stored?.smtpFrom);
+  const host = clean(stored?.smtpHost);
+  const dryRun = env("SMTP_TRANSPORT") === "json";
+  if (from && (host || dryRun)) {
+    const port = smtpPort(stored?.smtpPort);
+    return {
+      host: host ?? "localhost",
+      port,
+      secure: port === 465,
+      user: clean(stored?.smtpUser),
+      pass: clean(stored?.smtpPassword),
+      from,
+      dryRun,
+    };
+  }
+  return mailConfig();
+}
+
+function smtpPort(value: number | null | undefined): number {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 65535
+    ? value
+    : 587;
+}
+
+export interface MailAccountView {
+  from: string;
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  /** Where the values came from. "none" means nothing is configured. */
+  source: "saved" | "environment" | "none";
+}
+
+/**
+ * The account Send to Kindle will use, for Admin to display.
+ * A dry-run placeholder host is not shown as if someone configured it.
+ */
+export function mailAccountView(
+  stored: StoredSmtp | null | undefined,
+): MailAccountView {
+  const resolved = resolveMailConfig(stored);
+  if (!resolved) {
+    return {
+      from: "",
+      host: "",
+      port: 587,
+      user: "",
+      password: "",
+      source: "none",
+    };
+  }
+
+  const savedFrom = clean(stored?.smtpFrom);
+  const savedHost = clean(stored?.smtpHost);
+  const usingSaved = Boolean(savedFrom && (savedHost || resolved.dryRun));
+  return {
+    from: resolved.from,
+    host: usingSaved ? (savedHost ?? "") : resolved.host,
+    port: resolved.port,
+    user: resolved.user ?? "",
+    password: resolved.pass ?? "",
+    source: usingSaved ? "saved" : "environment",
+  };
+}
+
+/** The account actually used to send, including the environment fallback. */
+export async function loadMailConfig(): Promise<MailConfig | null> {
+  const { getSystemSettings } = await import("@/lib/system-settings");
+  const system = await getSystemSettings();
+  return resolveMailConfig(system);
+}
+
 /** The address mail arrives from, for the settings page to display. */
 export function mailSender(): string | null {
   return mailConfig()?.from ?? null;
@@ -81,10 +181,10 @@ export interface OutgoingMail {
 
 /** Sends one message, or throws MailError with something worth showing a user. */
 export async function sendMail(mail: OutgoingMail): Promise<void> {
-  const config = mailConfig();
+  const config = await loadMailConfig();
   if (!config) {
     throw new MailError(
-      "This app has no mail transport configured (SMTP_HOST / SMTP_FROM)",
+      "The sending account is not configured",
     );
   }
 

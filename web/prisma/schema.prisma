@@ -50,24 +50,33 @@ model User {
   image     String?
   createdAt DateTime @default(now())
 
-  // AI summary settings (see src/lib/summarize.ts)
+  /** Whether this person wants summaries written for them. */
   aiSummariesEnabled Boolean @default(false)
-  aiModel            String  @default("gemini-3.1-pro-preview")
-  aiApiKey           String?
-  aiPrompt           String? @db.Text
-  summaryView        String  @default("card") // "card" | "tabs"
+  /**
+   * Legacy per-account copies. The live model, key, and prompt are on
+   * SystemSettings, edited from Admin. These stay so an older backup still reads.
+   */
+  aiModel     String  @default("gemini-3.1-pro-preview")
+  aiApiKey    String?
+  aiPrompt    String? @db.Text
+  summaryView String  @default("card") // "card" | "tabs"
 
-  /** Extra topic names offered to the classifier beyond the built-in taxonomy. */
+  /** Topics this person added on top of the system defaults. */
   customTopics String[] @default([])
+  /** System defaults this person turned off. */
+  excludedTopics String[] @default([])
+  /**
+   * Collections behavior for this person's imports: "assign" or "import".
+   * Null follows SystemSettings.importTags.
+   */
+  importTagsOverride String?
 
   /** Mark an article read once narration reaches the end of it. */
   markReadOnListen Boolean @default(false)
 
   /**
    * Where "Send to Kindle" delivers to (@kindle.com).
-   *
-   * The mail transport itself is environment configuration, not user data —
-   * see src/lib/mail.ts. Only the destination belongs to the user.
+   * The account the server sends from lives on SystemSettings.
    */
   kindleEmail String?
 
@@ -75,6 +84,41 @@ model User {
   tokens   ApiToken[]
   tags     Tag[]
   jobs     BackgroundJob[]
+}
+
+/**
+ * One row, id "system". Admin edits it; every account reads it.
+ *
+ * The model, key, prompt, default tags, and import behavior are properties of
+ * the installation, not of one person.
+ */
+model SystemSettings {
+  id String @id
+
+  aiModel  String  @default("gemini-3.1-pro-preview")
+  aiApiKey String?
+  aiPrompt String? @db.Text
+
+  /** Default topic vocabulary offered to Auto-tag. */
+  defaultTopics String[] @default([])
+
+  /** "assign" | "import" */
+  importTags    String @default("assign")
+  /** "missing" | "refresh" */
+  importContent String @default("missing")
+  /** "ondemand" | "missing" | "always" */
+  importSummary String @default("ondemand")
+
+  /**
+   * The account that mails articles to Kindle. Null fields fall back to
+   * SMTP_* in the environment, which is how tests and an unconfigured
+   * install keep working. The password is write-only, like the AI key.
+   */
+  smtpHost     String?
+  smtpPort     Int?
+  smtpUser     String?
+  smtpPassword String?
+  smtpFrom     String?
 }
 
 model Article {

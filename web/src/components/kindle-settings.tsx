@@ -5,10 +5,10 @@ import { useEffect, useState } from "react";
 /**
  * Where Send to Kindle delivers, and who it arrives from.
  *
- * The sender is read-only on purpose: it is the app's mail transport, set in
- * the environment by whoever runs it. It is shown because Amazon drops mail
- * from any address that is not on your Approved Personal Document E-mail List,
- * and you cannot approve an address the app never tells you.
+ * The sender is read-only here: Admin sets the account the server sends from.
+ * It is shown because Amazon drops mail from any address that is not on your
+ * Approved Personal Document E-mail List, and you cannot approve an address
+ * the app never tells you.
  */
 export function KindleSettings() {
   const [address, setAddress] = useState("");
@@ -110,8 +110,7 @@ export function KindleSettings() {
             data-testid="kindle-unconfigured"
             className="mt-1 text-sm text-amber-700"
           >
-            This app has no mail transport configured, so nothing can be sent.
-            Set SMTP_HOST and SMTP_FROM in its environment — see the README.
+            This app has no sending account configured, so nothing can be sent.
           </p>
         )}
       </div>

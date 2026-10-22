@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
+import { getSystemSettings } from "@/lib/system-settings";
 import type { ArticleRow } from "@/lib/articles";
 import { ReaderControls } from "@/components/reader-controls";
 import { ListenRoot } from "@/components/listen/listen-root";
@@ -7,7 +8,7 @@ import { TagEditor } from "@/components/tag-editor";
 import { FetchText } from "@/components/fetch-text";
 import { isStub } from "@/lib/backup";
 import { sourceUrl } from "@/lib/source-url";
-import { mailConfig } from "@/lib/mail";
+import { resolveMailConfig } from "@/lib/mail";
 import { tagsForArticles } from "@/lib/tags";
 import {
   GenerateSummaryButton,
@@ -26,23 +27,25 @@ export async function ArticleReader({ article }: { article: ArticleRow }) {
   const userId = session?.user?.id;
   // Settings and tags are independent of each other. Waiting on them one
   // after the other held the article on screen for an extra round trip.
-  const [settings, tagMap] = await Promise.all([
+  const [settings, system, tagMap] = await Promise.all([
     userId
       ? prisma.user.findUnique({
           where: { id: userId },
           select: {
             aiSummariesEnabled: true,
-            aiApiKey: true,
             summaryView: true,
             kindleEmail: true,
           },
         })
       : Promise.resolve(null),
+    getSystemSettings(),
     tagsForArticles([article.id]),
   ]);
-  const aiConfigured = Boolean(settings?.aiSummariesEnabled && settings?.aiApiKey);
+  const aiConfigured = Boolean(settings?.aiSummariesEnabled && system.aiApiKey);
   // Needs both halves: an address to send to and a transport to send with.
-  const kindleConfigured = Boolean(settings?.kindleEmail && mailConfig());
+  const kindleConfigured = Boolean(
+    settings?.kindleEmail && resolveMailConfig(system),
+  );
   const tags = tagMap.get(article.id) ?? [];
   const stub = isStub(article);
   const summaryView = settings?.summaryView === "tabs" ? "tabs" : "card";

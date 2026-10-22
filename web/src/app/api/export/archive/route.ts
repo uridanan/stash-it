@@ -26,6 +26,9 @@ export async function GET(req: Request) {
 
   const params = new URL(req.url).searchParams;
   const includeContent = params.get("content") !== "exclude";
+  const includeLinks = params.get("links") !== "0";
+  const includeStatus = params.get("status") !== "0";
+  const includeSettings = params.get("settings") !== "0";
   const slug = params.get("tag");
   const tag = slug ? await getTagBySlug(user.userId, slug) : null;
   if (slug && !tag) {
@@ -37,7 +40,13 @@ export async function GET(req: Request) {
   const now = new Date();
 
   const stream = packArchive(
-    exportArchiveEntries(user.userId, now, { includeContent, tagId: tag?.id }),
+    exportArchiveEntries(user.userId, now, {
+      includeContent,
+      includeLinks,
+      includeStatus,
+      includeSettings,
+      tagId: tag?.id,
+    }),
     (err) => console.error("Archive export failed:", err),
   );
 

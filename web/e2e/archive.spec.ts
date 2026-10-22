@@ -87,13 +87,14 @@ test("the archive holds a manifest, a link index and one file per article", asyn
   await page.request.post(`/api/articles/${id}/tags`, {
     data: { name: "Archive Set" },
   });
-  await page.request.put("/api/settings", {
-    data: { apiKey: "secret-key-do-not-export" },
-  });
-
   // Seeded straight into the row: generating one needs a real AI key.
+  // The key is a system setting now, and a backup must still leave it behind.
   const prisma = db();
   try {
+    await prisma.systemSettings.update({
+      where: { id: "system" },
+      data: { aiApiKey: "secret-key-do-not-export" },
+    });
     await prisma.article.update({
       where: { id },
       data: { summary: SEEDED_SUMMARY },

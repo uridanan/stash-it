@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/api-auth";
-import { Importer, instapaperToRecords } from "@/lib/backup";
-import { parseImportOptions } from "@/lib/backup-archive";
-import { parseInstapaperCsv } from "@/lib/instapaper";
+import { CsvImportError, importInstapaperText } from "@/lib/import-csv";
+import { resolveImportOptions } from "@/lib/system-settings";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,40 +41,18 @@ export async function POST(req: Request) {
   }
 
   const text = new TextDecoder("utf-8").decode(body);
+  const options = await resolveImportOptions(user.userId, {
+    tags: new URL(req.url).searchParams.get("tags"),
+  });
 
-  let parsed;
   try {
-    parsed = parseInstapaperCsv(text);
+    const summary = await importInstapaperText(user.userId, text, options.tags);
+    return NextResponse.json(summary);
   } catch (err) {
+    if (err instanceof CsvImportError) return jsonError(err.message, 422);
     return jsonError(
       err instanceof Error ? err.message : "Could not read that CSV",
       422,
     );
   }
-
-  if (parsed.rows.length === 0) {
-    return jsonError("No usable rows found in that CSV", 422);
-  }
-
-  const options = parseImportOptions(
-    Object.fromEntries(new URL(req.url).searchParams),
-  );
-  const importer = new Importer(user.userId, {
-    tags: options.tags,
-    updateReadingState: true,
-  });
-  await importer.load();
-  for (const record of instapaperToRecords(parsed.rows)) {
-    await importer.add(record);
-  }
-  for (const skip of parsed.skipped.slice(0, 20)) {
-    importer.note(`line ${skip.line}: ${skip.reason}`);
-  }
-
-  const summary = await importer.finish();
-  return NextResponse.json({
-    ...summary,
-    rowsRead: parsed.rows.length,
-    rowsSkipped: parsed.skipped.length,
-  });
 }

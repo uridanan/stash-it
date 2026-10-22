@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/api-auth";
-import { prisma } from "@/lib/db";
 import { getArticle } from "@/lib/articles";
+import { loadAiSettings } from "@/lib/ai-tasks";
+import { prisma } from "@/lib/db";
 import { generateSummary, SummaryError } from "@/lib/summarize";
 
 export const dynamic = "force-dynamic";
@@ -21,15 +22,12 @@ export async function POST(req: Request, ctx: RouteContext) {
   const article = await getArticle(id, user.userId);
   if (!article) return jsonError("Article not found", 404);
 
-  const settings = await prisma.user.findUniqueOrThrow({
-    where: { id: user.userId },
-    select: { aiSummariesEnabled: true, aiModel: true, aiApiKey: true, aiPrompt: true },
-  });
-  if (!settings.aiSummariesEnabled) {
+  const settings = await loadAiSettings(user.userId);
+  if (!settings || !settings.aiSummariesEnabled) {
     return jsonError("AI summaries are disabled — enable them in Settings", 400);
   }
   if (!settings.aiApiKey) {
-    return jsonError("No API key configured — add one in Settings", 400);
+    return jsonError("No API key configured", 400);
   }
 
   try {

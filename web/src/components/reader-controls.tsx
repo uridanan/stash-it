@@ -29,8 +29,9 @@ import {
  *
  * Every control is an icon with a tooltip, and the row stays on one line:
  * leave, widen, then star, read, listen, download, and the overflow menu.
- * Text size lives in Settings → Appearance. Fetch, summarize and delete sit
- * in the overflow menu because they are rare and, in one case, irreversible.
+ * Text size lives in Settings → Appearance. Fetch, summarize, auto-tag and
+ * delete sit in the overflow menu because they are rare and, in one case,
+ * irreversible.
  */
 export function ReaderControls({
   articleId,

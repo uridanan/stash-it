@@ -48,6 +48,7 @@ services:
       # Local-only session secret; generate a real one for anything shared.
       AUTH_SECRET: "local-dev-secret-do-not-use-in-prod"
       # Enables the dev credentials login (never set in production).
+      # While this is on, dev@example.com can open Admin.
       AUTH_DEV_LOGIN: "true"
       AUTH_TRUST_HOST: "true"
       PORT: "8080"

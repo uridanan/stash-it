@@ -7,9 +7,11 @@ import { ArchiveTooLargeError } from "@/lib/archive";
 import { Importer } from "@/lib/backup";
 import {
   importArchive,
-  parseImportOptions,
   type ImportOptions,
 } from "@/lib/backup-archive";
+import { CsvImportError, importInstapaperText } from "@/lib/import-csv";
+import { looksLikeCsv } from "@/lib/instapaper";
+import { resolveImportOptions } from "@/lib/system-settings";
 import { startJob } from "@/lib/jobs";
 import {
   assertSupportedMeta,
@@ -86,6 +88,30 @@ async function peek(
   return { head, rest };
 }
 
+/** Reads the rest of an upload, counting the chunk already taken. */
+async function readAll(
+  first: Uint8Array,
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  max: number,
+): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [first];
+  let size = first.byteLength;
+  for (;;) {
+    const next = await reader.read();
+    if (next.done) break;
+    size += next.value.byteLength;
+    if (size > max) throw new TooLargeError("That file is larger than this import supports");
+    chunks.push(next.value);
+  }
+  const out = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
 function jsonError(error: string, status: number) {
   return NextResponse.json({ error }, { status });
 }
@@ -119,16 +145,30 @@ export async function POST(req: Request) {
   if (!req.body) return jsonError("Expected a request body", 400);
 
   const params = new URL(req.url).searchParams;
-  const options = parseImportOptions({
+  const options = await resolveImportOptions(user.userId, {
     tags: params.get("tags"),
-    content: params.get("content"),
-    summary: params.get("summary"),
   });
 
   const reader = req.body.getReader();
   const first = await reader.read();
   if (first.done || !first.value?.length) {
     return jsonError("The file is empty", 400);
+  }
+
+  if (looksLikeCsv(first.value)) {
+    try {
+      const bytes = await readAll(first.value, reader, 32 * 1024 * 1024);
+      const text = new TextDecoder("utf-8").decode(bytes);
+      const summary = await importInstapaperText(user.userId, text, options.tags);
+      return NextResponse.json({ ...summary, options });
+    } catch (err) {
+      if (err instanceof TooLargeError) return jsonError(err.message, 413);
+      if (err instanceof CsvImportError) return jsonError(err.message, 422);
+      return jsonError(
+        err instanceof Error ? err.message : "Could not read that CSV",
+        422,
+      );
+    }
   }
 
   let compressedBytes = 0;

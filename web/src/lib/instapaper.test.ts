@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  looksLikeCsv,
   mapFolder,
   normalizeUrl,
   parseCsv,
@@ -240,5 +241,22 @@ describe("parseInstapaperCsv", () => {
 
   it("returns nothing for an empty file", () => {
     expect(parseInstapaperCsv("")).toEqual({ rows: [], skipped: [] });
+  });
+});
+
+describe("looksLikeCsv", () => {
+  function bytes(text: string): Uint8Array {
+    return new TextEncoder().encode(text);
+  }
+
+  it("recognizes an Instapaper header, including a BOM", () => {
+    expect(looksLikeCsv(bytes("URL,Title,Folder\n"))).toBe(true);
+    expect(looksLikeCsv(bytes("\uFEFFURL,Title\n"))).toBe(true);
+  });
+
+  it("rejects gzip, NDJSON and a table with no URL column", () => {
+    expect(looksLikeCsv(new Uint8Array([0x1f, 0x8b, 0x08]))).toBe(false);
+    expect(looksLikeCsv(bytes('{"type":"meta"}\n'))).toBe(false);
+    expect(looksLikeCsv(bytes("foo,bar\n1,2\n"))).toBe(false);
   });
 });

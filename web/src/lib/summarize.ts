@@ -8,9 +8,9 @@ import {
 import { sourceUrl } from "@/lib/source-url";
 
 /**
- * AI article summaries. The user picks a model, supplies their own API key,
- * and may edit the prompt — all stored on the User row (see /settings).
- * Providers: Anthropic (official SDK), Google Gemini and xAI Grok (REST).
+ * AI article summaries. The model, API key, and prompt live on the system
+ * settings row, edited from Admin. Providers: Anthropic (official SDK),
+ * Google Gemini and xAI Grok (REST).
  */
 
 export const DEFAULT_SUMMARY_PROMPT = `You summarize saved articles for a read-it-later app. Always write in English, regardless of the article's language. The whole summary must be at most 10 lines.

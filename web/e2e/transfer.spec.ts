@@ -1,7 +1,8 @@
 import { gunzipSync, gzipSync } from "node:zlib";
+import { PrismaClient } from "@prisma/client";
 import { test, expect, type Page } from "@playwright/test";
 
-import { E2E_BASE_URL } from "./config";
+import { E2E_BASE_URL, E2E_DATABASE_URL } from "./config";
 
 const ARTICLE_URL = `${E2E_BASE_URL}/test-article.html`;
 const ARTICLE_TITLE = "The Quiet Revival of Slow Reading";
@@ -64,10 +65,16 @@ test("export is gzipped NDJSON, and carries no API key", async () => {
   await page.request.post(`/api/articles/${articleId}/tags`, {
     data: { name: "Backup Set" },
   });
-  // A key that must never leave in a backup.
-  await page.request.put("/api/settings", {
-    data: { apiKey: "secret-key-do-not-export" },
-  });
+  // A key that must never leave in a backup. It lives on the system row.
+  const prisma = new PrismaClient({ datasourceUrl: E2E_DATABASE_URL });
+  try {
+    await prisma.systemSettings.update({
+      where: { id: "system" },
+      data: { aiApiKey: "secret-key-do-not-export" },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
 
   const res = await page.request.get("/api/export");
   expect(res.ok()).toBe(true);

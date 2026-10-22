@@ -7,18 +7,18 @@ import {
 } from "@/lib/ai-provider";
 import { sourceUrl } from "@/lib/source-url";
 import { htmlToText, SUMMARY_MODELS } from "@/lib/summarize";
-import { MAX_TOPICS_PER_ARTICLE, topicVocabulary } from "@/lib/taxonomy";
+import { MAX_TOPICS_PER_ARTICLE } from "@/lib/taxonomy";
 
 /**
  * AI topic classification: picks topics for an article from a fixed vocabulary.
  *
- * Uses the same BYO key and model as summaries, and runs from the same
- * background job — so it costs one extra cheap call per save and needs no
- * additional configuration.
+ * Uses the system model and key, the same ones summaries use. The vocabulary
+ * is already resolved for this person — defaults, minus what they removed,
+ * plus what they added.
  *
- * The prompt here is fixed, deliberately *not* the user-editable summary
- * prompt: parsing depends on the response shape, and a user rewriting their
- * summary prompt must not silently break topic tagging.
+ * The prompt here is fixed, deliberately *not* the editable summary prompt:
+ * parsing depends on the response shape, and rewriting the summary prompt
+ * must not silently break topic tagging.
  */
 
 export class ClassifyError extends Error {}
@@ -37,8 +37,8 @@ export interface ClassifyInput {
 export interface ClassifySettings {
   model: string;
   apiKey: string;
-  /** Extra topic names beyond the built-in taxonomy. */
-  customTopics: readonly string[];
+  /** The full vocabulary the model may choose from, already resolved. */
+  topics: readonly string[];
 }
 
 function buildPrompt(vocabulary: readonly string[]): string {
@@ -123,7 +123,7 @@ export async function classifyTopics(
   if (!model) throw new ClassifyError(`Unknown model: ${settings.model}`);
   if (!settings.apiKey) throw new ClassifyError("No API key configured");
 
-  const vocabulary = topicVocabulary(settings.customTopics);
+  const vocabulary = settings.topics.map((topic) => topic.trim()).filter(Boolean);
   const prompt = buildPrompt(vocabulary);
   const userMessage = buildUserMessage(input);
 

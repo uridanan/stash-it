@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 
 import { CloseIcon } from "@/components/icons";
 import { JobProgress } from "@/components/job-progress";
+import { Toggle } from "@/components/toggle";
+import type { TagsOption } from "@/components/import-option";
 
 /** A file the importer accepts. Column order does not matter; names do. */
 const CSV_TEMPLATE = [
@@ -29,7 +31,7 @@ const CSV_FIELDS: { name: string; need: "Required" | "Optional"; detail: string 
 ];
 
 /**
- * Backup, restore, Markdown export and the one-time Instapaper import.
+ * Export, Markdown export, and import of a Stash-it archive or a CSV.
  *
  * Exports are plain links rather than fetches: the responses are streamed, so
  * letting the browser own the download means a large library never has to sit
@@ -49,50 +51,8 @@ interface ImportSummary {
   jobId?: string | null;
 }
 
-type TagsOption = "assign" | "import";
-type ContentOption = "missing" | "refresh";
-type SummaryOption = "ondemand" | "missing" | "always";
-
 const buttonClass =
   "rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-60";
-
-const selectClass =
-  "rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none transition-colors focus:border-violet-600";
-
-function Option<T extends string>({
-  label,
-  hint,
-  value,
-  onChange,
-  choices,
-  testId,
-}: {
-  label: string;
-  hint: string;
-  value: T;
-  onChange: (value: T) => void;
-  choices: { value: T; label: string }[];
-  testId: string;
-}) {
-  return (
-    <label className="block">
-      <span className="text-xs font-medium text-slate-700">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value as T)}
-        data-testid={testId}
-        className={`${selectClass} mt-1 block w-full`}
-      >
-        {choices.map((choice) => (
-          <option key={choice.value} value={choice.value}>
-            {choice.label}
-          </option>
-        ))}
-      </select>
-      <span className="mt-1 block text-xs text-slate-500">{hint}</span>
-    </label>
-  );
-}
 
 function downloadCsvTemplate() {
   const url = URL.createObjectURL(new Blob([CSV_TEMPLATE], { type: "text/csv" }));
@@ -130,7 +90,7 @@ function CsvFormatDialog({
       className="fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-5 text-slate-800 shadow-xl backdrop:bg-slate-900/40"
     >
       <div className="flex items-start justify-between gap-3">
-        <h4 className="text-sm font-medium text-slate-900">Expected format: CSV file</h4>
+        <h4 className="text-sm font-medium text-slate-900">Expected formats</h4>
         <button
           type="button"
           onClick={onClose}
@@ -140,6 +100,12 @@ function CsvFormatDialog({
           <CloseIcon />
         </button>
       </div>
+      <h5 className="mt-4 text-sm font-medium text-slate-900">Stash-it export</h5>
+      <p className="mt-1 text-xs text-slate-600">
+        Your articles, their status and tags, the saved text and each summary,
+        and your settings. A Markdown export is not imported.
+      </p>
+      <h5 className="mt-4 text-sm font-medium text-slate-900">CSV</h5>
       <pre className="mt-3 overflow-x-auto whitespace-pre rounded-lg bg-slate-50 p-3 font-mono text-[11px] leading-relaxed text-slate-700">
         {CSV_TEMPLATE.trim()}
       </pre>
@@ -166,28 +132,75 @@ function CsvFormatDialog({
 
 export function DataTransfer() {
   const router = useRouter();
-  const backupInput = useRef<HTMLInputElement>(null);
-  const instapaperInput = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState<null | "backup" | "instapaper">(null);
+  const importInput = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<null | "import">(null);
+  const [exportLinks, setExportLinks] = useState(true);
+  const [exportStatus, setExportStatus] = useState(true);
+  const [exportText, setExportText] = useState(true);
+  const [exportSettings, setExportSettings] = useState(true);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [tags, setTags] = useState<TagsOption>("assign");
-  const [content, setContent] = useState<ContentOption>("missing");
-  const [summaryMode, setSummaryMode] = useState<SummaryOption>("ondemand");
+  const [tags, setTags] = useState<TagsOption | null>(null);
+  const [systemTags, setSystemTags] = useState<TagsOption>("assign");
+  const [override, setOverride] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
 
-  async function upload(
-    file: File,
-    endpoint: string,
-    kind: "backup" | "instapaper",
-  ) {
-    setBusy(kind);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const system = data.systemImportTags === "import" ? "import" : "assign";
+        const chosen = data.importTags === "import" ? "import" : "assign";
+        setSystemTags(system);
+        setOverride(data.importTagsOverride === "assign" || data.importTagsOverride === "import");
+        setTags(chosen);
+      })
+      .catch(() => {
+        if (!cancelled) setTags("assign");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function chooseTags(value: TagsOption | null) {
+    const next = value ?? systemTags;
+    setTags(next);
+    setOverride(value !== null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ importTagsOverride: value }),
+      });
+      if (!res.ok) setError("Could not save that choice");
+    } catch {
+      setError("Could not save that choice");
+    }
+  }
+
+  const exportHref = (() => {
+    const params = new URLSearchParams();
+    if (!exportLinks) params.set("links", "0");
+    if (!exportStatus) params.set("status", "0");
+    if (!exportText) params.set("content", "exclude");
+    if (!exportSettings) params.set("settings", "0");
+    const query = params.toString();
+    return query ? `/api/export/archive?${query}` : "/api/export/archive";
+  })();
+  const exportReady = exportLinks || exportStatus || exportText || exportSettings;
+
+  async function upload(file: File) {
+    if (!tags) return;
+    setBusy("import");
     setSummary(null);
     setError(null);
-    const query = new URLSearchParams({ tags, content, summary: summaryMode });
+    const query = new URLSearchParams({ tags });
     try {
-      const res = await fetch(`${endpoint}?${query}`, {
+      const res = await fetch(`/api/import?${query}`, {
         method: "POST",
         headers: { "content-type": "application/octet-stream" },
         body: file,
@@ -209,33 +222,53 @@ export function DataTransfer() {
   return (
     <div className="mt-4 space-y-8">
       <section>
-        <h3 className="text-sm font-medium text-slate-900">Back up</h3>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <h3 className="text-sm font-medium text-slate-900">Export</h3>
+        <div className="mt-3 space-y-3">
+          <Toggle
+            checked={exportLinks}
+            onChange={setExportLinks}
+            label="Article links"
+            testId="export-links"
+          />
+          <Toggle
+            checked={exportStatus}
+            onChange={setExportStatus}
+            label="Status & Tags"
+            testId="export-status"
+          />
+          <Toggle
+            checked={exportText}
+            onChange={setExportText}
+            label="Article text"
+            description="One HTML per article, including its summary."
+            testId="export-text"
+          />
+          <Toggle
+            checked={exportSettings}
+            onChange={setExportSettings}
+            label="Settings"
+            testId="export-settings"
+          />
+        </div>
+        {exportReady ? (
           <a
-            href="/api/export/archive"
+            href={exportHref}
             download
             data-testid="export-archive"
-            className={`${buttonClass} inline-block`}
+            className={`${buttonClass} mt-3 inline-block`}
           >
-            ↓ Full backup
+            ↓ Export
           </a>
-          <a
-            href="/api/export/archive?content=exclude"
-            download
-            data-testid="export-archive-light"
-            className="inline-block rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50"
+        ) : (
+          <button
+            type="button"
+            disabled
+            data-testid="export-archive"
+            className={`${buttonClass} mt-3`}
           >
-            ↓ Without article text
-          </a>
-        </div>
-        <p className="mt-1 text-xs text-slate-500">
-          A <code className="font-mono">.tar.gz</code> holding{" "}
-          <code className="font-mono">stash.json</code> (settings and
-          collections), <code className="font-mono">links.ndjson</code> (every
-          link with its status and tags) and one HTML file per article including
-          its summary. This is the artefact to restore from. Your AI API key is
-          deliberately left out.
-        </p>
+            ↓ Export
+          </button>
+        )}
       </section>
 
       <section>
@@ -261,105 +294,86 @@ export function DataTransfer() {
 
       <section>
         <h3 className="text-sm font-medium text-slate-900">Import</h3>
-        <div className="mt-2 grid gap-3 sm:grid-cols-3">
-          <Option<TagsOption>
-            label="Collections"
-            hint="Assign re-derives them from each article. Choose Import when restoring your own backup, or hand-made collections are lost."
-            value={tags}
-            onChange={setTags}
-            testId="option-tags"
-            choices={[
-              { value: "assign", label: "Assign automatically" },
-              { value: "import", label: "Import from file" },
-            ]}
-          />
-          <Option<ContentOption>
-            label="Article text"
-            hint="Re-fetch prefers the live page and keeps the imported copy when a page is gone."
-            value={content}
-            onChange={setContent}
-            testId="option-content"
-            choices={[
-              { value: "missing", label: "Fetch if missing" },
-              { value: "refresh", label: "Re-fetch everything" },
-            ]}
-          />
-          <Option<SummaryOption>
-            label="AI summaries"
-            hint="On demand keeps the cost to what you actually read; each article offers a button."
-            value={summaryMode}
-            onChange={setSummaryMode}
-            testId="option-summary"
-            choices={[
-              { value: "ondemand", label: "On demand" },
-              { value: "missing", label: "Generate if missing" },
-              { value: "always", label: "Always regenerate" },
-            ]}
-          />
+        <div className="mt-2">
+          {tags ? (
+            <>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <label
+                  htmlFor="import-tags"
+                  className="text-sm font-medium text-slate-900"
+                >
+                  Collections
+                </label>
+                <select
+                  id="import-tags"
+                  value={override ? tags : ""}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    void chooseTags(value === "import" || value === "assign" ? value : null);
+                  }}
+                  data-testid="option-tags"
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 outline-none transition-colors focus:border-violet-600"
+                >
+                  <option value="">
+                    Use the system default (
+                    {systemTags === "import" ? "Import from file" : "Assign automatically"}
+                    )
+                  </option>
+                  <option value="assign">Assign automatically</option>
+                  <option value="import">Import from file</option>
+                </select>
+              </div>
+              <p className="mt-1 max-w-lg text-xs text-slate-500">
+                Assign re-derives them from each article. Choose Import when
+                restoring your own backup, or hand-made collections are lost.
+                This overrides the system default for your imports.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-slate-400">Loading…</p>
+          )}
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-1">
           <button
             type="button"
-            onClick={() => backupInput.current?.click()}
-            disabled={busy !== null}
+            onClick={() => importInput.current?.click()}
+            disabled={busy !== null || !tags}
             data-testid="import-backup"
             className={buttonClass}
           >
-            {busy === "backup" ? "Restoring…" : "↑ Restore a backup"}
+            {busy === "import" ? "Importing…" : "↑ Import"}
           </button>
-          <input
-            ref={backupInput}
-            type="file"
-            accept=".gz,.tgz,.ndjson,application/gzip"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file) void upload(file, "/api/import", "backup");
-            }}
-          />
-          <span className="inline-flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => instapaperInput.current?.click()}
-              disabled={busy !== null}
-              data-testid="import-instapaper"
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+          <button
+            type="button"
+            onClick={() => setFormatOpen(true)}
+            aria-label="Expected import formats"
+            data-testid="instapaper-format-info"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="h-4 w-4"
+              aria-hidden
             >
-              {busy === "instapaper" ? "Importing…" : "↑ From Instapaper"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setFormatOpen(true)}
-              aria-label="Expected CSV format"
-              data-testid="instapaper-format-info"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="h-4 w-4"
-                aria-hidden
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path strokeLinecap="round" d="M12 11v6" />
-                <circle cx="12" cy="7.5" r="0.9" fill="currentColor" stroke="none" />
-              </svg>
-            </button>
-          </span>
+              <circle cx="12" cy="12" r="9" />
+              <path strokeLinecap="round" d="M12 11v6" />
+              <circle cx="12" cy="7.5" r="0.9" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
           <CsvFormatDialog open={formatOpen} onClose={() => setFormatOpen(false)} />
           <input
-            ref={instapaperInput}
+            ref={importInput}
             type="file"
-            accept=".csv,text/csv"
+            accept=".gz,.tgz,.ndjson,.csv,application/gzip,text/csv"
             hidden
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = "";
-              if (file) void upload(file, "/api/import/instapaper", "instapaper");
+              if (file) void upload(file);
             }}
           />
         </div>

@@ -11,7 +11,7 @@
  * on every visit.
  */
 export const SETTINGS_TABS = [
-  { id: "ai", label: "AI summaries" },
+  { id: "ai", label: "AI" },
   { id: "listening", label: "Listening" },
   { id: "appearance", label: "Appearance" },
   { id: "kindle", label: "Kindle" },
