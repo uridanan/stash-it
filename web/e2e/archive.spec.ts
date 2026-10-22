@@ -507,6 +507,22 @@ test("a finished job reports successes and every failure", async () => {
     await expect(failure).toContainText("The page that 404'd");
     await expect(failure).toContainText("HTTP 404");
 
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByTestId("job-report-download").click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("stash-fetch-article-text.csv");
+    const { readFile } = await import("node:fs/promises");
+    const csv = (await readFile((await download.path())!, "utf8")).replace(/^\uFEFF/, "");
+    expect(csv).toContain("completed,failed");
+    expect(csv).toContain("The page that 404'd,https://example.com/gone,HTTP 404");
+
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.getByTestId("job-report-copy").click();
+    await expect(page.getByTestId("job-report-copy")).toHaveAttribute("aria-label", "Copied");
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toContain("The page that 404'd");
+    expect(copied).toContain("HTTP 404");
+
     await prisma.backgroundJob.deleteMany({ where: { userId: user.id } });
   } finally {
     await prisma.$disconnect();

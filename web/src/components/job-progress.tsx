@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { CheckIcon, CopyIcon, DownloadIcon } from "@/components/icons";
+
 /**
  * The three fill-in axes, with progress for whichever is running.
  *
@@ -86,8 +88,88 @@ function reportStatus(status: string): string {
   return "didn't finish";
 }
 
-function JobReport({ job, onDismiss }: { job: Job; onDismiss: () => void }) {
+/**
+ * Spreadsheet form of the report. Each failure is a row, and the run's counts
+ * ride along so filtering the list still shows how many articles succeeded.
+ * A run with no failures is one row of those counts.
+ */
+function reportCsv(job: Job): string {
   const failures = job.failures ?? [];
+  const rows = failures.length > 0 ? failures : [null];
+  const lines = [
+    ["job", "status", "completed", "failed", "title", "url", "reason"].join(","),
+    ...rows.map((failure) =>
+      [
+        LABELS[job.type],
+        reportStatus(job.status),
+        job.done,
+        job.failed,
+        failure?.title ?? "",
+        failure?.url ?? "",
+        failure?.reason ?? "",
+      ]
+        .map(csvCell)
+        .join(","),
+    ),
+  ];
+  return lines.join("\r\n");
+}
+
+function csvCell(value: string | number): string {
+  let text = String(value);
+  // A cell that starts with one of these is a formula when opened in a spreadsheet.
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  if (/[",\n\r]/.test(text)) return `"${text.replaceAll('"', '""')}"`;
+  return text;
+}
+
+function reportFilename(job: Job): string {
+  const slug = LABELS[job.type]
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `stash-${slug}.csv`;
+}
+
+function downloadReport(job: Job) {
+  const blob = new Blob(["\uFEFF", reportCsv(job)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = reportFilename(job);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+const iconButtonClass =
+  "rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-100";
+
+function JobReport({ job, onDismiss }: { job: Job; onDismiss: () => void }) {
+  // Icon actions sit beside Dismiss: copy the CSV, or save it.
+  const failures = job.failures ?? [];
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
+  async function copyReport() {
+    try {
+      await navigator.clipboard.writeText(reportCsv(job));
+      setCopied(true);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  }
+
   return (
     <div
       data-testid="job-report"
@@ -97,14 +179,40 @@ function JobReport({ job, onDismiss }: { job: Job; onDismiss: () => void }) {
         <p className="text-sm font-medium text-slate-900">
           {LABELS[job.type]} {reportStatus(job.status)}
         </p>
-        <button
-          type="button"
-          onClick={onDismiss}
-          data-testid="job-report-dismiss"
-          className="rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100"
-        >
-          Dismiss
-        </button>
+        <div className="flex shrink-0 items-center">
+          <button
+            type="button"
+            onClick={() => void copyReport()}
+            title={copied ? "Copied" : "Copy report"}
+            aria-label={copied ? "Copied" : "Copy report"}
+            data-testid="job-report-copy"
+            className={iconButtonClass}
+          >
+            {copied ? (
+              <CheckIcon className="h-4 w-4" />
+            ) : (
+              <CopyIcon className="h-4 w-4" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadReport(job)}
+            title="Download CSV"
+            aria-label="Download CSV"
+            data-testid="job-report-download"
+            className={iconButtonClass}
+          >
+            <DownloadIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            data-testid="job-report-dismiss"
+            className="ml-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100"
+          >
+            Dismiss
+          </button>
+        </div>
       </div>
       {job.error ? (
         <p className="mt-1 text-xs text-red-600">{job.error}</p>
