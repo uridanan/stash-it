@@ -25,7 +25,6 @@ import {
   SpinnerIcon,
   StarIcon,
   TagIcon,
-  TagOffIcon,
   TrashIcon,
 } from "@/components/icons";
 
@@ -319,12 +318,15 @@ function CollectionPicker({
   tags,
   chosen,
   busy,
+  pinSlug,
   onApply,
   onReload,
 }: {
   tags: CollectionOption[] | null;
   chosen: { tagSlugs?: string[] }[];
   busy: boolean;
+  /** Shown first, so the collection you are looking at is the one you uncheck. */
+  pinSlug?: string;
   onApply: (changes: CollectionChange[]) => void;
   onReload: () => void;
 }) {
@@ -345,8 +347,13 @@ function CollectionPicker({
       if (seen.has(tag.slug)) return false;
       return !extras.some((extra) => extra.name.toLowerCase() === tag.name.toLowerCase());
     });
-    return [...extras, ...rest];
-  }, [extras, tags]);
+    const all = [...extras, ...rest];
+    if (!pinSlug) return all;
+    return [
+      ...all.filter((tag) => tag.slug === pinSlug),
+      ...all.filter((tag) => tag.slug !== pinSlug),
+    ];
+  }, [extras, tags, pinSlug]);
 
   function shownFor(tag: CollectionOption): Membership {
     const override = overrides.get(tag.slug);
@@ -491,8 +498,8 @@ export function SelectionToolbar({
 }: {
   articles: SelectionTarget[];
   children: React.ReactNode;
-  /** Set on a collection page, where the selection can leave that collection. */
-  collection?: { id: string; name: string };
+  /** The collection on screen. It is listed first, and unchecking it removes the articles. */
+  collection?: { slug: string };
   onRemovedFromCollection?: (ids: string[]) => void;
 }) {
   return (
@@ -514,7 +521,7 @@ function SelectionActions({
 }: {
   articles: SelectionTarget[];
   children: React.ReactNode;
-  collection?: { id: string; name: string };
+  collection?: { slug: string };
   onRemovedFromCollection?: (ids: string[]) => void;
 }) {
   const selection = useSelection();
@@ -801,42 +808,10 @@ function SelectionActions({
               : `Removed from ${removes.length} collections`
             : `Updated ${added.length + removes.length} collections`,
       );
+      if (collection && removes.some((change) => change.slug === collection.slug)) {
+        onRemovedFromCollection?.(ids);
+      }
       selection.clear();
-      router.refresh();
-    } catch {
-      setError("Network error — try again");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function removeFromCollection() {
-    if (!selection || !collection || busy || ids.length === 0) return;
-    setBusy("untag");
-    setError(null);
-    try {
-      const results = await Promise.all(
-        ids.map(async (id) => {
-          const res = await fetch(
-            `/api/articles/${id}/tags?tagId=${encodeURIComponent(collection.id)}`,
-            { method: "DELETE" },
-          );
-          return res.ok;
-        }),
-      );
-      const removed = ids.filter((_, index) => results[index]);
-      if (removed.length === 0) {
-        setError("Could not remove those from this collection");
-        return;
-      }
-      onRemovedFromCollection?.(removed);
-      if (removed.length === ids.length) selection.clear();
-      else {
-        for (const id of removed) selection.toggle(id);
-      }
-      if (removed.length < ids.length) {
-        setError("Could not remove some articles from this collection");
-      }
       router.refresh();
     } catch {
       setError("Network error — try again");
@@ -878,7 +853,7 @@ function SelectionActions({
               aria-label={allRead ? "Mark as unread" : "Mark as read"}
               aria-pressed={allRead}
               data-testid="selection-read"
-              className={`${actionButton} ${allRead ? "text-violet-600" : ""}`}
+              className={`${actionButton} ${allRead ? "text-cyan-600" : "text-slate-400"}`}
             >
               <CheckIcon />
             </button>
@@ -894,6 +869,7 @@ function SelectionActions({
                   tags={tags}
                   chosen={chosen}
                   busy={busy !== null}
+                  pinSlug={collection?.slug}
                   onReload={reloadTags}
                   onApply={(changes) => {
                     close();
@@ -902,19 +878,6 @@ function SelectionActions({
                 />
               )}
             </Menu>
-            {collection ? (
-              <button
-                type="button"
-                disabled={busy !== null || count === 0}
-                onClick={() => void removeFromCollection()}
-                title={`Remove from ${collection.name}`}
-                aria-label={`Remove from ${collection.name}`}
-                data-testid="selection-remove-collection"
-                className={actionButton}
-              >
-                {busy === "untag" ? <SpinnerIcon /> : <TagOffIcon />}
-              </button>
-            ) : null}
             {count === 1 && listen.supported ? (
               <button
                 type="button"

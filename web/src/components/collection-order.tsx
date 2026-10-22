@@ -23,7 +23,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { onArticleRead } from "@/components/article-read";
-import { CheckIcon, HeadphonesIcon } from "@/components/icons";
+import { CheckIcon, ChevronLeftIcon, HeadphonesIcon, TrashIcon } from "@/components/icons";
 import { useListen } from "@/components/listen/listen-provider";
 import {
   SelectCheckbox,
@@ -55,7 +55,6 @@ export interface CollectionItem {
 export function CollectionOrder({
   slug,
   name,
-  tagId,
   items: initialItems,
   unreadOnly,
   totalCount,
@@ -64,7 +63,6 @@ export function CollectionOrder({
 }: {
   slug: string;
   name: string;
-  tagId: string;
   items: CollectionItem[];
   unreadOnly: boolean;
   /** Size of the collection ignoring the filter. */
@@ -150,16 +148,16 @@ export function CollectionOrder({
   return (
     <SelectionProvider>
     <div>
-      <div className="relative flex flex-nowrap items-center gap-0.5 overflow-x-auto">
+      <div className="relative flex flex-nowrap items-center gap-1">
         <Link
           href="/tags"
           aria-label="Back"
           title="Back"
-          className="flex h-12 w-10 shrink-0 items-center justify-center rounded-lg text-lg text-slate-600 hover:bg-slate-100"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-slate-900 hover:bg-slate-100 max-lg:bg-slate-100"
         >
-          ←
+          <ChevronLeftIcon className="h-7 w-7 max-lg:h-8 max-lg:w-8" />
         </Link>
-        <h1 className="min-w-0 truncate text-lg font-bold text-slate-900">
+        <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-slate-900">
           {name}
         </h1>
         <CollectionTools
@@ -168,7 +166,7 @@ export function CollectionOrder({
           unreadCount={unreadCount}
           onShowUnread={showUnread}
           actions={actions}
-          collection={{ id: tagId, name }}
+          collection={{ slug }}
           articles={items.map((item) => ({
             id: item.id,
             starred: item.starred,
@@ -261,7 +259,7 @@ function CollectionTools({
   unreadCount: number;
   onShowUnread: (next: boolean) => void;
   actions: React.ReactNode;
-  collection: { id: string; name: string };
+  collection: { slug: string };
   articles: {
     id: string;
     starred: boolean;
@@ -283,10 +281,10 @@ function CollectionTools({
   }, [selection]);
 
   const chip =
-    "min-h-10 shrink-0 rounded-full px-2 text-sm font-medium tabular-nums transition-colors";
+    "shrink-0 rounded-full border px-2.5 py-0.5 text-sm tabular-nums transition-colors";
 
   return (
-    <>
+    <div className="ml-auto flex shrink-0 items-center gap-1">
       {!choosing && (
         <>
           <button
@@ -297,8 +295,8 @@ function CollectionTools({
             data-testid="all-filter"
             className={`${chip} ${
               unreadOnly
-                ? "text-slate-500 hover:bg-slate-100"
-                : "bg-violet-600 text-white"
+                ? "border-slate-200 text-slate-500 hover:bg-slate-50"
+                : "border-violet-300 bg-violet-50 text-violet-700"
             }`}
           >
             All({totalCount})
@@ -311,15 +309,14 @@ function CollectionTools({
             data-testid="unread-filter"
             className={`${chip} ${
               unreadOnly
-                ? "bg-violet-600 text-white"
-                : "text-slate-500 hover:bg-slate-100"
+                ? "border-violet-300 bg-violet-50 text-violet-700"
+                : "border-slate-200 text-slate-500 hover:bg-slate-50"
             }`}
           >
             Unread({unreadCount})
           </button>
         </>
       )}
-      {!choosing && actions}
       <SelectionToolbar
         articles={articles}
         collection={collection}
@@ -327,21 +324,8 @@ function CollectionTools({
       >
         {listen}
       </SelectionToolbar>
-    </>
-  );
-}
-
-function ReadMark({ read }: { read: boolean }) {
-  return (
-    <span
-      role="img"
-      aria-label={read ? "Read" : "Unread"}
-      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-        read ? "bg-violet-600 text-white" : "bg-white ring-2 ring-inset ring-slate-300"
-      }`}
-    >
-      {read ? <CheckIcon className="h-4 w-4" /> : null}
-    </span>
+      {!choosing && actions}
+    </div>
   );
 }
 
@@ -362,8 +346,42 @@ function SortableRow({
   const selected = searchParams.get("article") === item.id;
   const selection = useSelection();
   const picked = selection?.selected.has(item.id) ?? false;
-  const read = selection?.flags[item.id]?.archived ?? item.read;
+  const flag = selection?.flags[item.id];
+  const read = flag?.archived ?? item.read;
+  const starred = flag?.starred ?? item.starred;
   const press = useLongPressSelect(item.id);
+  const [busy, setBusy] = useState(false);
+
+  async function patch(body: { state?: "unread" | "archived"; starred?: boolean }) {
+    if (busy) return;
+    selection?.setFlags([item.id], {
+      ...(body.starred !== undefined ? { starred: body.starred } : {}),
+      ...(body.state !== undefined ? { archived: body.state === "archived" } : {}),
+    });
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/articles/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (busy) return;
+    if (!confirm("Delete this article? This cannot be undone.")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/articles/${item.id}`, { method: "DELETE" });
+      if (res.ok) router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   /**
    * Desktop (lg+): select into the reader pane so the collection stays on the
@@ -405,8 +423,6 @@ function SortableRow({
         ⠿
       </button>
 
-      <ReadMark read={read} />
-
       <div className="min-w-0 flex-1">
         <Link
           href={`/article/${item.id}`}
@@ -422,15 +438,6 @@ function SortableRow({
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center">
-        <div className="pointer-events-none min-w-0 max-lg:hidden w-0 overflow-hidden opacity-0 transition-all lg:group-hover:pointer-events-auto lg:group-hover:w-16 lg:group-hover:overflow-visible lg:group-hover:opacity-100 lg:group-focus-within:pointer-events-auto lg:group-focus-within:w-16 lg:group-focus-within:overflow-visible lg:group-focus-within:opacity-100">
-          <div className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 shadow-sm">
-            <SelectCheckbox
-              articleId={item.id}
-              className="flex h-12 w-12 shrink-0 items-center justify-center"
-            />
-          </div>
-        </div>
       <button
         type="button"
         onClick={onSendToTop}
@@ -438,10 +445,50 @@ function SortableRow({
         title="Send to top"
         aria-label={`Send ${item.title} to top`}
         data-testid="send-to-top"
-        className="min-h-12 rounded-lg px-3 py-2 text-base text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+        className="min-h-12 shrink-0 rounded-lg px-3 py-2 text-base text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
       >
         ↑ Top
       </button>
+
+      <div className="pointer-events-none max-lg:hidden lg:absolute lg:right-0 lg:top-2 lg:z-10 lg:flex lg:items-center lg:gap-1 lg:rounded-lg lg:border lg:border-slate-200 lg:bg-white lg:px-1 lg:py-0.5 lg:opacity-0 lg:shadow-sm lg:transition-opacity lg:group-hover:pointer-events-auto lg:group-hover:opacity-100 lg:group-focus-within:pointer-events-auto lg:group-focus-within:opacity-100">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void patch({ starred: !starred })}
+          title={starred ? "Unstar" : "Star"}
+          aria-label={starred ? "Unstar" : "Star"}
+          className={`flex h-12 w-12 items-center justify-center rounded-lg text-xl transition-colors hover:bg-slate-100 disabled:opacity-50 ${
+            starred ? "text-cyan-600" : "text-slate-400"
+          }`}
+        >
+          {starred ? "★" : "☆"}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void patch({ state: read ? "unread" : "archived" })}
+          title={read ? "Mark as unread" : "Mark as read"}
+          aria-label={read ? "Mark as unread" : "Mark as read"}
+          className={`flex h-12 w-12 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 disabled:opacity-50 ${
+            read ? "text-cyan-600 hover:text-cyan-700" : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <CheckIcon />
+        </button>
+        <SelectCheckbox
+          articleId={item.id}
+          className="flex h-12 w-12 shrink-0 items-center justify-center"
+        />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void handleDelete()}
+          title="Delete"
+          aria-label="Delete"
+          className="flex h-12 w-12 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+        >
+          <TrashIcon />
+        </button>
       </div>
     </li>
   );

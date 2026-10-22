@@ -97,7 +97,6 @@ export default async function TagPage({
           <CollectionOrder
             slug={tag.slug}
             name={tag.name}
-            tagId={tag.id}
             items={items}
             unreadOnly={unreadOnly}
             totalCount={totalCount}

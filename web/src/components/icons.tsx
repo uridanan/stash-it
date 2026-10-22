@@ -15,11 +15,14 @@ export type IconProps = {
   className?: string;
   /** Fills the shape as well as stroking it — used for the "on" star. */
   filled?: boolean;
+  /** Overrides the default stroke. The read check uses a heavier one. */
+  strokeWidth?: number;
 };
 
 function Svg({
   className = "h-6 w-6",
   filled = false,
+  strokeWidth = 1.7,
   children,
 }: IconProps & { children: React.ReactNode }) {
   return (
@@ -27,7 +30,7 @@ function Svg({
       viewBox="0 0 24 24"
       fill={filled ? "currentColor" : "none"}
       stroke="currentColor"
-      strokeWidth="1.7"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -95,10 +98,18 @@ export function StarIcon(props: IconProps) {
   );
 }
 
-export function CheckIcon(props: IconProps) {
+export function CheckIcon({ strokeWidth = 2.6, ...props }: IconProps) {
   return (
-    <Svg {...props}>
+    <Svg strokeWidth={strokeWidth} {...props}>
       <path d="M4.5 12.5l5 5 10-11" />
+    </Svg>
+  );
+}
+
+export function ChevronLeftIcon({ strokeWidth = 2.4, ...props }: IconProps) {
+  return (
+    <Svg strokeWidth={strokeWidth} {...props}>
+      <path d="M14.5 5.5L8 12l6.5 6.5" />
     </Svg>
   );
 }
@@ -202,16 +213,6 @@ export function TagIcon(props: IconProps) {
     <Svg {...props}>
       <path d="M3.5 12.2V5.2A1.7 1.7 0 0 1 5.2 3.5h7l8.3 8.3-6.7 6.7z" />
       <circle cx="8.2" cy="8.2" r="1.15" />
-    </Svg>
-  );
-}
-
-/** A tag with the hole crossed out: take the article out of a collection. */
-export function TagOffIcon(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <path d="M3.5 12.2V5.2A1.7 1.7 0 0 1 5.2 3.5h7l8.3 8.3-6.7 6.7z" />
-      <path d="M6.2 8.2h4" />
     </Svg>
   );
 }
