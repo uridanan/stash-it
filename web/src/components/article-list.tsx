@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { onArticleFlags } from "@/components/article-read";
 import { ArticleRow, type ArticleRowData } from "@/components/article-row";
 import { toRowData } from "@/components/article-list-data";
 import {
@@ -21,6 +22,22 @@ export type ArticleListPage = {
   sort?: string;
   order?: string;
 };
+
+/** Keeps row highlights in step when star or read changes from the reader. */
+function FlagSync() {
+  const selection = useSelection();
+  const setFlags = selection?.setFlags;
+  useEffect(() => {
+    if (!setFlags) return;
+    return onArticleFlags((detail) => {
+      setFlags([detail.id], {
+        ...(detail.read !== undefined ? { archived: detail.read } : {}),
+        ...(detail.starred !== undefined ? { starred: detail.starred } : {}),
+      });
+    });
+  }, [setFlags]);
+  return null;
+}
 
 function ListHeader({
   heading,
@@ -163,6 +180,14 @@ export function ArticleList({
     };
   }, [cursor, failed, page]);
 
+  const retain = page?.starred
+    ? "starred"
+    : page?.state === "archived"
+      ? "archived"
+      : page?.state === "unread"
+        ? "unread"
+        : undefined;
+
   const targets = rows.map((article) => ({
     id: article.id,
     starred: article.starred,
@@ -172,6 +197,7 @@ export function ArticleList({
 
   return (
     <SelectionProvider>
+      <FlagSync />
       <ListHeader heading={heading} leading={leading} targets={targets} />
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
@@ -182,7 +208,7 @@ export function ArticleList({
       <>
       <ul>
         {rows.map((article) => (
-          <ArticleRow key={article.id} article={article} />
+          <ArticleRow key={article.id} article={article} retain={retain} />
         ))}
       </ul>
       {cursor && (

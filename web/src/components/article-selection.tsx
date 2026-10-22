@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 
+import { announceArticleFlags } from "@/components/article-read";
 import { useListen } from "@/components/listen/listen-provider";
 import { Menu, MenuItem } from "@/components/menu";
 import { Toast } from "@/components/toast";
@@ -642,12 +643,18 @@ function SelectionActions({
       starred: Boolean(article.starred),
       archived: article.archived,
     }));
-    // Paint star and read before the request. The page refresh that follows
-    // is what used to be the only update, and it waits on the whole library.
-    selection.setFlags(ids, {
+    // Paint star and read before the request. Refreshing the page here would
+    // replace the open article with the loading screen.
+    const patch = {
       ...(body.starred !== undefined ? { starred: body.starred } : {}),
       ...(body.state !== undefined ? { archived: body.state === "archived" } : {}),
-    });
+    };
+    const announced = {
+      ...(body.starred !== undefined ? { starred: body.starred } : {}),
+      ...(body.state !== undefined ? { read: body.state === "archived" } : {}),
+    };
+    selection.setFlags(ids, patch);
+    for (const id of ids) announceArticleFlags(id, announced);
     setBusy("patch");
     setError(null);
     try {
@@ -666,16 +673,23 @@ function SelectionActions({
             starred: article.starred,
             archived: article.archived,
           });
+          announceArticleFlags(article.id, {
+            starred: article.starred,
+            read: article.archived,
+          });
         }
         setError("Some of those failed — try again");
         return;
       }
-      router.refresh();
     } catch {
       for (const article of previous) {
         selection.setFlags([article.id], {
           starred: article.starred,
           archived: article.archived,
+        });
+        announceArticleFlags(article.id, {
+          starred: article.starred,
+          read: article.archived,
         });
       }
       setError("Network error — try again");
@@ -839,7 +853,9 @@ function SelectionActions({
               aria-label={allStarred ? "Unstar" : "Star"}
               aria-pressed={allStarred}
               data-testid="selection-star"
-              className={`${actionButton} ${allStarred ? "text-cyan-600" : ""}`}
+              className={`${actionButton} ${
+                allStarred ? "!text-cyan-300 hover:!bg-cyan-50" : "text-slate-400"
+              }`}
             >
               <StarIcon filled={allStarred} />
             </button>
@@ -853,9 +869,13 @@ function SelectionActions({
               aria-label={allRead ? "Mark as unread" : "Mark as read"}
               aria-pressed={allRead}
               data-testid="selection-read"
-              className={`${actionButton} ${allRead ? "text-cyan-600" : "text-slate-400"}`}
+              className={`${actionButton} ${
+                allRead
+                  ? "!text-cyan-300 hover:!bg-cyan-50"
+                  : "!text-slate-300 hover:!text-slate-400"
+              }`}
             >
-              <CheckIcon />
+              <CheckIcon strokeWidth={allRead ? 3.4 : 1.6} />
             </button>
             <Menu
               label="Add to collection"

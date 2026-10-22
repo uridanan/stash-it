@@ -22,7 +22,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { onArticleRead } from "@/components/article-read";
+import { announceArticleFlags, onArticleFlags } from "@/components/article-read";
 import { CheckIcon, ChevronLeftIcon, HeadphonesIcon, TrashIcon } from "@/components/icons";
 import { useListen } from "@/components/listen/listen-provider";
 import {
@@ -80,11 +80,20 @@ export function CollectionOrder({
   // the collection's contents change underneath us.
   useEffect(() => setItems(initialItems), [initialItems]);
 
-  // A finished listen flips the check without waiting for the list to reload.
+  // A click or a finished listen flips star and read without reloading the page,
+  // which would replace the open article with the loading screen.
   useEffect(() => {
-    return onArticleRead((id, read) => {
+    return onArticleFlags((detail) => {
       setItems((current) =>
-        current.map((item) => (item.id === id ? { ...item, read } : item)),
+        current.map((item) =>
+          item.id === detail.id
+            ? {
+                ...item,
+                read: detail.read ?? item.read,
+                starred: detail.starred ?? item.starred,
+              }
+            : item,
+        ),
       );
     });
   }, []);
@@ -211,21 +220,11 @@ export function CollectionOrder({
         modifiers={[restrictToVerticalAxis]}
         onDragEnd={onDragEnd}
       >
-        <SortableContext
-          items={items.map((item) => item.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <ul data-testid="collection-list" className="mt-4">
-            {items.map((item, index) => (
-              <SortableRow
-                key={item.id}
-                item={item}
-                onSendToTop={() => sendToTop(item.id)}
-                canSendToTop={index > 0}
-              />
-            ))}
-          </ul>
-        </SortableContext>
+        <CollectionRows
+          items={items}
+          unreadOnly={unreadOnly}
+          onSendToTop={sendToTop}
+        />
       </DndContext>
 
       {items.length === 0 ? (
@@ -273,10 +272,13 @@ function CollectionTools({
   const choosing =
     (selection?.selected.size ?? 0) > 0 || Boolean(selection?.selecting);
 
-  // Keep the row check in step when a listen finishes while this list is open.
+  // Keep the row icons in step when star or read changes from the reader.
   useEffect(() => {
-    return onArticleRead((id, read) => {
-      selection?.setFlags([id], { archived: read });
+    return onArticleFlags((detail) => {
+      selection?.setFlags([detail.id], {
+        ...(detail.read !== undefined ? { archived: detail.read } : {}),
+        ...(detail.starred !== undefined ? { starred: detail.starred } : {}),
+      });
     });
   }, [selection]);
 
@@ -329,6 +331,41 @@ function CollectionTools({
   );
 }
 
+function CollectionRows({
+  items,
+  unreadOnly,
+  onSendToTop,
+}: {
+  items: CollectionItem[];
+  unreadOnly: boolean;
+  onSendToTop: (id: string) => void;
+}) {
+  const selection = useSelection();
+  const visible = items.filter((item) => {
+    if (!unreadOnly) return true;
+    const read = selection?.flags[item.id]?.archived ?? item.read;
+    return !read;
+  });
+
+  return (
+    <SortableContext
+      items={visible.map((item) => item.id)}
+      strategy={verticalListSortingStrategy}
+    >
+      <ul data-testid="collection-list" className="mt-4">
+        {visible.map((item) => (
+          <SortableRow
+            key={item.id}
+            item={item}
+            onSendToTop={() => onSendToTop(item.id)}
+            canSendToTop={items.findIndex((entry) => entry.id === item.id) > 0}
+          />
+        ))}
+      </ul>
+    </SortableContext>
+  );
+}
+
 function SortableRow({
   item,
   onSendToTop,
@@ -354,9 +391,14 @@ function SortableRow({
 
   async function patch(body: { state?: "unread" | "archived"; starred?: boolean }) {
     if (busy) return;
+    const previous = { starred, read };
     selection?.setFlags([item.id], {
       ...(body.starred !== undefined ? { starred: body.starred } : {}),
       ...(body.state !== undefined ? { archived: body.state === "archived" } : {}),
+    });
+    announceArticleFlags(item.id, {
+      ...(body.starred !== undefined ? { starred: body.starred } : {}),
+      ...(body.state !== undefined ? { read: body.state === "archived" } : {}),
     });
     setBusy(true);
     try {
@@ -365,7 +407,16 @@ function SortableRow({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (res.ok) router.refresh();
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      selection?.setFlags([item.id], {
+        starred: previous.starred,
+        archived: previous.read,
+      });
+      announceArticleFlags(item.id, {
+        starred: previous.starred,
+        read: previous.read,
+      });
     } finally {
       setBusy(false);
     }
@@ -445,7 +496,7 @@ function SortableRow({
         title="Send to top"
         aria-label={`Send ${item.title} to top`}
         data-testid="send-to-top"
-        className="min-h-12 shrink-0 rounded-lg px-3 py-2 text-base text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+        className="min-h-12 shrink-0 rounded-lg px-3 py-2 text-base text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 lg:hidden"
       >
         ↑ Top
       </button>
@@ -453,12 +504,25 @@ function SortableRow({
       <div className="pointer-events-none max-lg:hidden lg:absolute lg:right-0 lg:top-2 lg:z-10 lg:flex lg:items-center lg:gap-1 lg:rounded-lg lg:border lg:border-slate-200 lg:bg-white lg:px-1 lg:py-0.5 lg:opacity-0 lg:shadow-sm lg:transition-opacity lg:group-hover:pointer-events-auto lg:group-hover:opacity-100 lg:group-focus-within:pointer-events-auto lg:group-focus-within:opacity-100">
         <button
           type="button"
+          onClick={onSendToTop}
+          disabled={!canSendToTop}
+          title="Send to top"
+          aria-label={`Send ${item.title} to top`}
+          data-testid="send-to-top"
+          className="flex h-12 shrink-0 items-center justify-center rounded-lg px-2.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+        >
+          ↑ Top
+        </button>
+        <button
+          type="button"
           disabled={busy}
           onClick={() => void patch({ starred: !starred })}
           title={starred ? "Unstar" : "Star"}
           aria-label={starred ? "Unstar" : "Star"}
           className={`flex h-12 w-12 items-center justify-center rounded-lg text-xl transition-colors hover:bg-slate-100 disabled:opacity-50 ${
-            starred ? "text-cyan-600" : "text-slate-400"
+            starred
+              ? "!text-cyan-300 hover:!bg-cyan-50"
+              : "text-slate-400 hover:text-slate-600"
           }`}
         >
           {starred ? "★" : "☆"}
@@ -470,10 +534,12 @@ function SortableRow({
           title={read ? "Mark as unread" : "Mark as read"}
           aria-label={read ? "Mark as unread" : "Mark as read"}
           className={`flex h-12 w-12 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 disabled:opacity-50 ${
-            read ? "text-cyan-600 hover:text-cyan-700" : "text-slate-400 hover:text-slate-600"
+            read
+              ? "!text-cyan-300 hover:!bg-cyan-50"
+              : "!text-slate-300 hover:!text-slate-400"
           }`}
         >
-          <CheckIcon />
+          <CheckIcon strokeWidth={read ? 3.4 : 1.6} />
         </button>
         <SelectCheckbox
           articleId={item.id}

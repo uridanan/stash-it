@@ -179,8 +179,14 @@ test("star and unstar from the list", async () => {
   await page.goto("/");
   const row = page.getByTestId("article-row").filter({ hasText: ARTICLE_TITLE });
   await row.hover();
+  const starred = page.waitForResponse(
+    (res) =>
+      res.request().method() === "PATCH" &&
+      /\/api\/articles\/[^/]+$/.test(new URL(res.url()).pathname) &&
+      res.ok(),
+  );
   await row.getByRole("button", { name: "Star", exact: true }).click();
-  // wait for the PATCH + router.refresh() round-trip before navigating
+  await starred;
   await expect(row.getByRole("button", { name: "Unstar" })).toBeVisible();
   await page.goto("/starred");
   await expect(
@@ -192,7 +198,14 @@ test("archive moves the article out of unread", async () => {
   await page.goto("/");
   const row = page.getByTestId("article-row").filter({ hasText: ARTICLE_TITLE });
   await row.hover();
+  const archived = page.waitForResponse(
+    (res) =>
+      res.request().method() === "PATCH" &&
+      /\/api\/articles\/[^/]+$/.test(new URL(res.url()).pathname) &&
+      res.ok(),
+  );
   await row.getByRole("button", { name: "Mark as read", exact: true }).click();
+  await archived;
   await expect(page.getByTestId("article-row")).toHaveCount(0);
   await page.goto("/archive");
   await expect(
@@ -204,7 +217,14 @@ test("unarchive returns the article to unread", async () => {
   await page.goto("/archive");
   const row = page.getByTestId("article-row").filter({ hasText: ARTICLE_TITLE });
   await row.hover();
+  const restored = page.waitForResponse(
+    (res) =>
+      res.request().method() === "PATCH" &&
+      /\/api\/articles\/[^/]+$/.test(new URL(res.url()).pathname) &&
+      res.ok(),
+  );
   await row.getByRole("button", { name: "Mark as unread" }).click();
+  await restored;
   await expect(row).toHaveCount(0);
   await page.goto("/");
   await expect(

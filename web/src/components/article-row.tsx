@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { onArticleRead } from "@/components/article-read";
+import { announceArticleFlags } from "@/components/article-read";
 import { SelectCheckbox, useLongPressSelect, useSelection } from "@/components/article-selection";
 import { CheckIcon, TrashIcon } from "@/components/icons";
 import { TagChips } from "@/components/tag-chips";
@@ -23,7 +23,14 @@ export type ArticleRowData = {
   tags: ArticleTagDTO[];
 };
 
-export function ArticleRow({ article }: { article: ArticleRowData }) {
+export function ArticleRow({
+  article,
+  retain,
+}: {
+  article: ArticleRowData;
+  /** Hide the row once it no longer belongs on this list. The open article stays. */
+  retain?: "unread" | "archived" | "starred";
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -37,13 +44,6 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
   const archived = flag?.archived ?? article.state === "ARCHIVED";
   const picked = selection?.selected.has(article.id) ?? false;
   const press = useLongPressSelect(article.id);
-
-  // A finished listen marks the article read without going through this row.
-  useEffect(() => {
-    return onArticleRead((id, read) => {
-      if (id === article.id) selection?.setFlags([article.id], { archived: read });
-    });
-  }, [article.id, selection]);
 
   /**
    * Desktop split view (lg+): select into the reader pane instead of
@@ -75,14 +75,37 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
     }
   }
 
-  function patch(body: { state?: "unread" | "archived"; starred?: boolean }) {
-    return mutate(() =>
-      fetch(`/api/articles/${article.id}`, {
+  async function patch(body: { state?: "unread" | "archived"; starred?: boolean }) {
+    if (busy) return;
+    const previous = { starred, archived };
+    const next = {
+      ...(body.starred !== undefined ? { starred: body.starred } : {}),
+      ...(body.state !== undefined ? { archived: body.state === "archived" } : {}),
+    };
+    // Paint the teal highlight now. Refreshing would swap the open article
+    // for the loading screen.
+    selection?.setFlags([article.id], next);
+    announceArticleFlags(article.id, {
+      ...(body.starred !== undefined ? { starred: body.starred } : {}),
+      ...(body.state !== undefined ? { read: body.state === "archived" } : {}),
+    });
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/articles/${article.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      })
-    );
+      });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      selection?.setFlags([article.id], previous);
+      announceArticleFlags(article.id, {
+        starred: previous.starred,
+        read: previous.archived,
+      });
+    } finally {
+      setBusy(false);
+    }
   }
 
   function handleDelete() {
@@ -90,6 +113,14 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
     void mutate(() =>
       fetch(`/api/articles/${article.id}`, { method: "DELETE" })
     );
+  }
+
+  if (
+    (retain === "unread" && archived) ||
+    (retain === "archived" && !archived) ||
+    (retain === "starred" && !starred)
+  ) {
+    return null;
   }
 
   return (
@@ -134,7 +165,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
           <span>{article.readingMinutes} min read</span>
           <span> · {article.savedAtLabel}</span>
           {starred && (
-            <span className="text-cyan-600"> · ★ starred</span>
+            <span className="text-cyan-300"> · ★ starred</span>
           )}
         </p>
         {article.excerpt && (
@@ -150,7 +181,7 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
         </div>
       </div>
 
-      <div className="hidden items-center gap-1 lg:absolute lg:right-0 lg:top-3 lg:z-10 lg:flex lg:rounded-lg lg:border lg:border-slate-200 lg:bg-white lg:px-1 lg:py-0.5 lg:opacity-0 lg:shadow-sm lg:transition-opacity lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+      <div className="pointer-events-none hidden items-center gap-1 lg:absolute lg:right-0 lg:top-3 lg:z-10 lg:flex lg:rounded-lg lg:border lg:border-slate-200 lg:bg-white lg:px-1 lg:py-0.5 lg:opacity-0 lg:shadow-sm lg:transition-opacity lg:group-hover:pointer-events-auto lg:group-hover:opacity-100 lg:group-focus-within:pointer-events-auto lg:group-focus-within:opacity-100">
         <button
           type="button"
           disabled={busy}
@@ -158,7 +189,9 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
           title={starred ? "Unstar" : "Star"}
           aria-label={starred ? "Unstar" : "Star"}
           className={`flex h-12 w-12 items-center justify-center rounded-lg text-xl transition-colors hover:bg-slate-100 disabled:opacity-50 ${
-            starred ? "text-cyan-600" : "text-slate-400"
+            starred
+              ? "!text-cyan-300 hover:!bg-cyan-50"
+              : "text-slate-400 hover:text-slate-600"
           }`}
         >
           {starred ? "★" : "☆"}
@@ -173,11 +206,11 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
           // in its colour rather than needing a second button beside it.
           className={`flex h-12 w-12 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 disabled:opacity-50 ${
             archived
-              ? "text-cyan-600 hover:text-cyan-700"
-              : "text-slate-400 hover:text-slate-600"
+              ? "!text-cyan-300 hover:!bg-cyan-50"
+              : "!text-slate-300 hover:!text-slate-400"
           }`}
         >
-          <CheckIcon />
+          <CheckIcon strokeWidth={archived ? 3.4 : 1.6} />
         </button>
         <SelectCheckbox
           articleId={article.id}

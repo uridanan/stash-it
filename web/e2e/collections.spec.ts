@@ -177,7 +177,9 @@ test("send to top reorders, and the order survives a reload", async () => {
   const before = await collectionOrder(page);
   expect(before).toHaveLength(2);
 
-  await page.getByTestId("collection-row").last().getByTestId("send-to-top").click();
+  const lastRow = page.getByTestId("collection-row").last();
+  await lastRow.hover();
+  await lastRow.getByTestId("send-to-top").locator("visible=true").click();
 
   // The moved article leads, in the UI and in what the server persisted.
   await expect.poll(() => firstRowArticleId(page)).toBe(before[1]);

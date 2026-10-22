@@ -3,7 +3,11 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { announceArticleRead, useAnnouncedRead } from "@/components/article-read";
+import {
+  announceArticleFlags,
+  useAnnouncedRead,
+  useAnnouncedStar,
+} from "@/components/article-read";
 import { useListen } from "@/components/listen/listen-provider";
 import { useWakeLock } from "@/components/use-wake-lock";
 import { ArticleActions } from "@/components/article-actions";
@@ -57,7 +61,7 @@ export function ReaderControls({
   const [busy, setBusy] = useState(false);
 
   /**
-   * Leave the reader after close/archive/delete. On the standalone /article
+   * Leave the reader after close or delete. On the standalone /article
    * page that means going home; in the desktop split view it means clearing
    * the ?article= selection while keeping the list (and any search) in place.
    */
@@ -77,16 +81,25 @@ export function ReaderControls({
     setFontSize(readFontSize());
   }, []);
 
+  // Paint the highlight on click. Refreshing here reloads the list and swaps
+  // the open article for the loading screen.
+  const shownStarred = useAnnouncedStar(articleId, starred) ?? starred;
+  const shownArchived = useAnnouncedRead(articleId, archived) ?? archived;
+
   async function toggleStar() {
     if (busy) return;
+    const next = !shownStarred;
+    announceArticleFlags(articleId, { starred: next });
     setBusy(true);
     try {
       const res = await fetch(`/api/articles/${articleId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ starred: !starred }),
+        body: JSON.stringify({ starred: next }),
       });
-      if (res.ok) router.refresh();
+      if (!res.ok) announceArticleFlags(articleId, { starred: !next });
+    } catch {
+      announceArticleFlags(articleId, { starred: !next });
     } finally {
       setBusy(false);
     }
@@ -95,31 +108,26 @@ export function ReaderControls({
   /** Read/unread is one state; the tick carries it in its colour. */
   async function toggleArchive() {
     if (busy) return;
+    const nextRead = !shownArchived;
+    announceArticleFlags(articleId, { read: nextRead });
     setBusy(true);
     try {
-      const nextRead = !shownArchived;
       const res = await fetch(`/api/articles/${articleId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ state: nextRead ? "archived" : "unread" }),
       });
-      if (res.ok) {
-        announceArticleRead(articleId, nextRead);
-        if (nextRead) {
-          exitReader();
-        } else {
-          router.refresh();
-        }
-      }
+      if (!res.ok) announceArticleFlags(articleId, { read: !nextRead });
+    } catch {
+      announceArticleFlags(articleId, { read: !nextRead });
     } finally {
       setBusy(false);
     }
   }
 
   const controlButton =
-    "flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent";
-  // A listen can mark this article read without the page props changing yet.
-  const shownArchived = useAnnouncedRead(articleId, archived) ?? archived;
+    "flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-violet-50 hover:text-violet-700 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-600";
+  const toggleOn = "!text-cyan-300 hover:!bg-cyan-50 hover:!text-cyan-300";
 
   return (
     <div>
@@ -144,7 +152,7 @@ export function ReaderControls({
               aria-label={layout.listHidden ? "Show the article list" : "Full width"}
               aria-pressed={layout.listHidden}
               data-testid="reader-full-width"
-              className={`${controlButton} ${layout.listHidden ? "text-violet-700" : ""}`}
+              className={`${controlButton} ${layout.listHidden ? "!text-violet-700" : ""}`}
             >
               {layout.listHidden ? <PanelLeftIcon /> : <ExpandIcon />}
             </button>
@@ -157,15 +165,15 @@ export function ReaderControls({
               type="button"
               disabled={busy}
               onClick={toggleStar}
-              title={starred ? "Unstar" : "Star"}
-              aria-label={starred ? "Unstar" : "Star"}
-              aria-pressed={starred}
+              title={shownStarred ? "Unstar" : "Star"}
+              aria-label={shownStarred ? "Unstar" : "Star"}
+              aria-pressed={shownStarred}
               data-testid="reader-star-toggle"
               className={`${controlButton} ${
-                starred ? "text-cyan-600 hover:text-cyan-700" : ""
+                shownStarred ? toggleOn : "!text-slate-400 hover:!bg-cyan-50 hover:!text-cyan-300"
               }`}
             >
-              <StarIcon filled={starred} />
+              <StarIcon filled={shownStarred} />
             </button>
             <button
               type="button"
@@ -176,12 +184,10 @@ export function ReaderControls({
               aria-pressed={shownArchived}
               data-testid="reader-read-toggle"
               className={`${controlButton} ${
-                shownArchived
-                  ? "text-cyan-600 hover:text-cyan-700"
-                  : "text-slate-400 hover:text-slate-600"
+                shownArchived ? toggleOn : "!text-slate-300 hover:!bg-cyan-50 hover:!text-cyan-300"
               }`}
             >
-              <CheckIcon />
+              <CheckIcon strokeWidth={shownArchived ? 3.4 : 1.6} />
             </button>
 
             {listen.supported && (
@@ -203,7 +209,7 @@ export function ReaderControls({
                 }
                 data-testid="listen-start"
                 className={`${controlButton} ${
-                  listen.status !== "idle" ? "text-violet-700" : ""
+                  listen.status !== "idle" ? "!text-violet-700" : ""
                 }`}
               >
                 {listen.status === "idle" ? <HeadphonesIcon /> : <StopIcon />}
