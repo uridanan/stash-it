@@ -20,7 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { announceArticleFlags, onArticleFlags } from "@/components/article-read";
 import { CheckIcon, ChevronLeftIcon, HeadphonesIcon, TagIcon, TrashIcon } from "@/components/icons";
@@ -40,6 +40,35 @@ import {
  * because waiting on a round trip to see a drag land feels broken. A failed
  * write reverts to the order the server last confirmed.
  */
+
+type ScrollSpot = { el: HTMLElement | Window; top: number; left: number };
+
+function captureScroll(): ScrollSpot[] {
+  const spots: ScrollSpot[] = [{ el: window, top: window.scrollY, left: window.scrollX }];
+  let node = document.querySelector("[data-testid=collection-list]")?.parentElement ?? null;
+  while (node && node !== document.documentElement) {
+    const oy = getComputedStyle(node).overflowY;
+    if (
+      (oy === "auto" || oy === "scroll" || oy === "overlay") &&
+      node.scrollHeight > node.clientHeight + 1
+    ) {
+      spots.push({ el: node, top: node.scrollTop, left: node.scrollLeft });
+    }
+    node = node.parentElement;
+  }
+  return spots;
+}
+
+function applyScroll(spots: ScrollSpot[]) {
+  for (const spot of spots) {
+    if (spot.el instanceof HTMLElement) {
+      spot.el.scrollTop = spot.top;
+      spot.el.scrollLeft = spot.left;
+    } else {
+      window.scrollTo(spot.left, spot.top);
+    }
+  }
+}
 
 export interface CollectionItem {
   id: string;
@@ -146,9 +175,33 @@ export function CollectionOrder({
     void persist(next, String(active.id));
   }
 
+  // Moving a focused row to the top makes the browser scroll that control
+  // into view. Remember the scroll position and put it back so several
+  // articles can be sent up without losing your place.
+  const keepScroll = useRef<ScrollSpot[] | null>(null);
+
+  useLayoutEffect(() => {
+    const spots = keepScroll.current;
+    if (!spots) return;
+    keepScroll.current = null;
+    applyScroll(spots);
+    // The browser can scroll the moved row into view a frame after layout.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      applyScroll(spots);
+      second = requestAnimationFrame(() => applyScroll(spots));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [items]);
+
   function sendToTop(id: string) {
     const from = items.findIndex((item) => item.id === id);
     if (from <= 0) return;
+    keepScroll.current = captureScroll();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const next = arrayMove(items, from, 0);
     setItems(next);
     void persist(next, id);
@@ -453,7 +506,11 @@ function SortableRow({
   return (
     <li
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        overflowAnchor: "none",
+      }}
       data-testid="collection-row"
       onPointerDown={press.rowProps.onPointerDown}
       onClickCapture={press.rowProps.onClickCapture}
