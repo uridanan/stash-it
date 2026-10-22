@@ -17,7 +17,8 @@ extension · Docker / Cloud Run.
                  │                                               │
    Browser ──────┤  Web app (PWA, installable on Android)        │
    Android share ┤  /save  ← Web Share Target (Google app, etc.) │
-   Chrome ext ───┤  POST /api/articles  (Bearer API token)       │
+   Chrome ext ───┤  POST /api/articles       (URL, Bearer token) │
+   Agent ────────┤  POST /api/articles/text  (full text)         │
    Bookmarklet ──┤  /save?url=...                                │
                  └───────────────────┬───────────────────────────┘
                                      │ HTTPS
@@ -111,42 +112,115 @@ and then starts the standalone Next.js server. Postgres data persists in the
 
 ## Adding articles from the API
 
-Both calls authenticate with `Authorization: Bearer stash_…` (or a signed-in
-session). `collections` is optional on each. Those names are added to the
-article and do not replace the collections the app assigns on its own — length,
-language, and, once the background pass finishes, topics. The summary is
-written in that same background pass.
+Two calls, both for an agent or any other client. Create a token in
+**Settings → Apps & tokens** (shown once, format `stash_<32 hex>`) and send it
+as `Authorization: Bearer stash_…`. A signed-in browser session works too.
 
-Save a URL. This is the same save the app and the extension use. A URL that is
-already in the library is returned as-is (un-archived) and any new collection
-names are added.
+Set the server once, then reuse it:
 
-```http
-POST /api/articles
-Content-Type: application/json
-
-{ "url": "https://example.com/story", "collections": ["Reading"] }
+```bash
+export STASH_URL=http://localhost:3000
+export STASH_TOKEN=stash_your_token_here
 ```
 
-Save full text, when there is no page to fetch — an email, a note, anything an
-agent already has as text. Nothing is downloaded, and the article has no source
-link. `title` and `author` are optional; without a title the first line is
-used. Sending the same text again returns the existing article and adds any
-new collections.
+`collections` is optional on both calls. Each name is attached to the article,
+and created if you do not already have that collection. The names are
+**additive**: they do not replace the collections the app assigns itself
+(length, language, and — after the background pass — topics). Up to 20 names,
+each 60 characters or fewer. Matching is case-insensitive, so `"Reading"` and
+`"reading"` are the same collection.
 
-```http
-POST /api/articles/text
-Content-Type: application/json
+A new article responds **201**. Saving something already in the library
+responds **200**, un-archives it, and adds any new collection names. The body
+is `{ "article": { … } }` either way. The summary is often `null` in that
+first response; it, and the topic collections, are filled in afterwards, the
+same way as a save from the app.
 
+### Save a URL
+
+`POST /api/articles` fetches the page, extracts the article, and saves it.
+This is the same save the app and the Chrome extension use. `url` must be
+`http` or `https`.
+
+```bash
+curl -sS -X POST "$STASH_URL/api/articles" \
+  -H "Authorization: Bearer $STASH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/story",
+    "collections": ["Reading", "Work"]
+  }'
+```
+
+```json
 {
-  "title": "Board update",
-  "text": "The full text of the article.",
-  "collections": ["From email"]
+  "article": {
+    "id": "cm...",
+    "url": "https://example.com/story",
+    "title": "The headline from the page",
+    "state": "UNREAD",
+    "summary": null
+  }
 }
 ```
 
-A new article responds `201` with `{ "article": { … } }`. Text articles have
-`"url": null`. An article that was already saved responds `200`.
+Sending the same URL again returns that article (`200`) instead of a second
+copy. If extraction fails, the article is still saved, with
+`extractionFailed: true` and the hostname as the title.
+
+### Save full text
+
+`POST /api/articles/text` stores text you already have — an email, a note, a
+page an agent extracted. Nothing is fetched, and the article has no source
+link (`"url": null`). There is no "View original" in the reader.
+
+`text` is required. `title` and `author` are optional; without a title, the
+first line of the text is used. Plain text is stored as paragraphs. If the
+text contains HTML tags, those tags are sanitized and kept as the body.
+Title up to 300 characters, author up to 200, text up to 1,500,000 characters.
+
+```bash
+curl -sS -X POST "$STASH_URL/api/articles/text" \
+  -H "Authorization: Bearer $STASH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Board update",
+    "author": "Ada Lovelace",
+    "text": "Revenue grew in the quarter.\n\nCosts did not. The board asked for a written plan.",
+    "collections": ["From email", "Work"]
+  }'
+```
+
+```json
+{
+  "article": {
+    "id": "cm...",
+    "url": null,
+    "title": "Board update",
+    "author": "Ada Lovelace",
+    "state": "UNREAD",
+    "summary": null
+  }
+}
+```
+
+Sending the **same text** again returns the existing article (`200`) and adds
+any new collections. The title and body stay as they were on the first save.
+A retry that only changes line endings still matches. Different text creates
+a new article.
+
+Posting `text` to `/api/articles` is refused. That call only accepts a URL;
+full text goes to `/api/articles/text`.
+
+### Errors
+
+| Status | When |
+| --- | --- |
+| 401 | Missing or unknown token |
+| 400 | Body is not JSON, or `url` / `text` is missing |
+| 422 | URL is not http(s), text is empty or too long, or `collections` is not an array of short names |
+
+The body is `{ "error": "…" }`.
 
 ## Send to Kindle
 
