@@ -6,6 +6,7 @@ import { buildEpub } from "@/lib/epub";
 import { loadExportArticle } from "@/lib/export-article";
 import { MailError, mailConfig, sendMail } from "@/lib/mail";
 import { articleFilename } from "@/lib/markdown";
+import { sourceUrl } from "@/lib/source-url";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,6 +53,7 @@ export async function POST(req: Request, ctx: RouteContext) {
 
   const epub = await buildEpub(article);
   const filename = articleFilename(article, "epub");
+  const link = sourceUrl(article.url);
 
   try {
     await sendMail({
@@ -59,7 +61,7 @@ export async function POST(req: Request, ctx: RouteContext) {
       // Amazon uses the subject only for its own bookkeeping; "Convert" is not
       // needed for EPUB, which it ingests directly.
       subject: article.title,
-      text: `${article.title}\n${article.url}\n`,
+      text: link ? `${article.title}\n${link}\n` : `${article.title}\n`,
       attachments: [
         { filename, content: epub, contentType: "application/epub+zip" },
       ],

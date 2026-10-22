@@ -102,10 +102,53 @@ export default async function SettingsPage({
         <>
           <Panel
             title="API tokens"
-            blurb="Tokens authenticate the Chrome extension and other API clients. Each token is shown in full only once, when it is created."
+            blurb="Tokens authenticate the Chrome extension, agents, and other API clients. Each token is shown in full only once, when it is created."
           >
             <div className="mt-4">
               <TokenManager />
+            </div>
+          </Panel>
+
+          <Panel
+            title="Adding articles"
+            blurb="Send a token as Authorization: Bearer stash_…. Names in collections are added to the article. They do not replace the collections the app assigns itself. A summary and topic collections are filled in afterwards, the same way as a save from the app."
+          >
+            <div className="mt-4 space-y-4 text-sm text-slate-600" data-testid="api-add-articles">
+              <div>
+                <h3 className="font-medium text-slate-800">Save a URL</h3>
+                <p className="mt-1">
+                  Fetches and saves the page, the same as adding a URL in the app.
+                  Sending a URL that is already saved returns that article.
+                </p>
+                <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-3 font-mono text-xs leading-relaxed text-slate-800">{`POST /api/articles
+{
+  "url": "https://example.com/story",
+  "collections": ["Reading"]
+}`}</pre>
+              </div>
+              <div>
+                <h3 className="font-medium text-slate-800">Save full text</h3>
+                <p className="mt-1">
+                  For a piece that has no page, such as an email. Nothing is
+                  fetched, and the article has no link back to a source.{" "}
+                  <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">
+                    title
+                  </code>{" "}
+                  and{" "}
+                  <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">
+                    author
+                  </code>{" "}
+                  are optional; without a title, the first line is used. Sending
+                  the same text again returns the existing article and adds any
+                  new collections.
+                </p>
+                <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-3 font-mono text-xs leading-relaxed text-slate-800">{`POST /api/articles/text
+{
+  "title": "Board update",
+  "text": "The full text of the article.",
+  "collections": ["From email"]
+}`}</pre>
+              </div>
             </div>
           </Panel>
 

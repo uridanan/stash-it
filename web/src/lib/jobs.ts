@@ -3,6 +3,7 @@ import type { JobType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { classifyArticle, loadAiSettings, summarizeArticle } from "@/lib/ai-tasks";
 import { fillStub } from "@/lib/backup";
+import { TEXT_ARTICLE_PREFIX } from "@/lib/source-url";
 
 /**
  * The three fill-in jobs: fetch article text, classify topics, write summaries.
@@ -89,7 +90,11 @@ export async function estimateCost(
 function remainingWhere(userId: string, type: JobType, force = false) {
   switch (type) {
     case "FETCH_CONTENT":
-      if (force) return { userId };
+      // Text articles have no page to fetch. A forced pass would otherwise
+      // walk them and report a failure for every one.
+      if (force) {
+        return { userId, NOT: { url: { startsWith: TEXT_ARTICLE_PREFIX } } };
+      }
       // Stubs only: an article whose extraction already failed is not retried
       // in bulk, or every run would hammer the same dead links.
       return { userId, content: "", extractionFailed: false };

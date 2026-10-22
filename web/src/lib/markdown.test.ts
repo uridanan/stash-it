@@ -205,6 +205,16 @@ describe("articleToMarkdown", () => {
     expect(md).toContain("No article text was saved");
     expect(md).toContain("https://example.com/a");
   });
+
+  it("omits the source link when the article has no page", () => {
+    const md = articleToMarkdown(
+      article({ url: "stash-text:abc", siteName: null, content: "<p>From an email.</p>" }),
+    );
+    expect(md).toContain("From an email.");
+    expect(md).not.toContain("stash-text:");
+    expect(md).not.toContain("[Original]");
+    expect(md).not.toContain("url:");
+  });
 });
 
 describe("indexToMarkdown", () => {

@@ -6,6 +6,7 @@ import { ListenRoot } from "@/components/listen/listen-root";
 import { TagEditor } from "@/components/tag-editor";
 import { FetchText } from "@/components/fetch-text";
 import { isStub } from "@/lib/backup";
+import { sourceUrl } from "@/lib/source-url";
 import { mailConfig } from "@/lib/mail";
 import { tagsForArticles } from "@/lib/tags";
 import {
@@ -56,11 +57,14 @@ export async function ArticleReader({ article }: { article: ArticleRow }) {
 
   const archived = String(article.state).toUpperCase() === "ARCHIVED";
 
+  const original = sourceUrl(article.url);
   let hostname: string | null = null;
-  try {
-    hostname = new URL(article.url).hostname;
-  } catch {
-    hostname = null;
+  if (original) {
+    try {
+      hostname = new URL(original).hostname;
+    } catch {
+      hostname = null;
+    }
   }
 
   return (
@@ -74,6 +78,7 @@ export async function ArticleReader({ article }: { article: ArticleRow }) {
         starred={article.starred}
         archived={archived}
         kindleConfigured={kindleConfigured}
+        canFetch={original !== null}
       >
         <header className="mt-8">
           <h1 className="text-[1.7rem] font-bold leading-tight text-slate-900">
@@ -82,29 +87,37 @@ export async function ArticleReader({ article }: { article: ArticleRow }) {
           <p className="mt-3 text-sm text-slate-500">
             {article.siteName && (
               <>
-                <a
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-violet-700 hover:underline"
-                >
-                  {article.siteName}
-                </a>
+                {original ? (
+                  <a
+                    href={original}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-violet-700 hover:underline"
+                  >
+                    {article.siteName}
+                  </a>
+                ) : (
+                  <span>{article.siteName}</span>
+                )}
                 {" · "}
               </>
             )}
             {article.author && <span>{article.author} · </span>}
             <span>{article.readingMinutes} min read</span>
             {savedLabel && <span> · saved {savedLabel}</span>}
-            {" · "}
-            <a
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-violet-700 underline underline-offset-2 hover:text-violet-800"
-            >
-              View original
-            </a>
+            {original && (
+              <>
+                {" · "}
+                <a
+                  href={original}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-violet-700 underline underline-offset-2 hover:text-violet-800"
+                >
+                  View original
+                </a>
+              </>
+            )}
           </p>
           <TagEditor articleId={article.id} initialTags={tags} />
         </header>
@@ -125,16 +138,21 @@ export async function ArticleReader({ article }: { article: ArticleRow }) {
 
         {article.extractionFailed && (
           <div className="mt-6 rounded-lg border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900">
-            We couldn&apos;t extract a readable version of this page.{" "}
-            <a
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium underline underline-offset-2"
-            >
-              Read it on {hostname ?? "the original site"}
-            </a>
-            .
+            We couldn&apos;t extract a readable version of this page.
+            {original && (
+              <>
+                {" "}
+                <a
+                  href={original}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium underline underline-offset-2"
+                >
+                  Read it on {hostname ?? "the original site"}
+                </a>
+                .
+              </>
+            )}
           </div>
         )}
 

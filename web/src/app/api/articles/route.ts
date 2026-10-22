@@ -10,6 +10,7 @@ import {
   toArticleDTO,
   toArticleListItemDTO,
 } from "@/lib/articles";
+import { parseCollections } from "@/lib/collection-names";
 import { ExtractionError } from "@/lib/extract";
 import { tagsForArticles } from "@/lib/tags";
 import type { ArticleListResponse, ArticleState } from "@/types";
@@ -105,13 +106,25 @@ export async function POST(req: Request) {
     return jsonError("Invalid JSON body", 400);
   }
 
-  const url = (body as { url?: unknown }).url;
+  const record = body as { url?: unknown; text?: unknown; collections?: unknown };
+  const url = record.url;
   if (typeof url !== "string" || !url.trim()) {
+    if (typeof record.text === "string") {
+      return jsonError(
+        "This endpoint saves a URL. Post full text to /api/articles/text",
+        400,
+      );
+    }
     return jsonError("Missing required field: url", 400);
   }
 
+  const collections = parseCollections(record.collections);
+  if ("error" in collections) return jsonError(collections.error, 422);
+
   try {
-    const saved = await saveArticleFromUrl(user.userId, url);
+    const saved = await saveArticleFromUrl(user.userId, url, {
+      collections: collections.names,
+    });
     return NextResponse.json(
       { article: toArticleDTO(saved) },
       { status: saved.created ? 201 : 200 },

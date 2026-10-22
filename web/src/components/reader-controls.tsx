@@ -33,12 +33,15 @@ export function ReaderControls({
   starred,
   archived,
   kindleConfigured,
+  canFetch = true,
   children,
 }: {
   articleId: string;
   starred: boolean;
   archived: boolean;
   kindleConfigured: boolean;
+  /** False when the article has no page to fetch, such as one saved as text. */
+  canFetch?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -174,8 +177,8 @@ export function ReaderControls({
               data-testid="reader-read-toggle"
               className={`${controlButton} ${
                 shownArchived
-                  ? "bg-violet-600 text-white hover:bg-violet-700 hover:text-white"
-                  : "text-slate-400 ring-2 ring-inset ring-slate-300 hover:text-slate-600"
+                  ? "text-cyan-600 hover:text-cyan-700"
+                  : "text-slate-400 hover:text-slate-600"
               }`}
             >
               <CheckIcon />
@@ -212,6 +215,7 @@ export function ReaderControls({
             <ArticleActions
               articleId={articleId}
               kindleConfigured={kindleConfigured}
+              canFetch={canFetch}
               onDeleted={exitReader}
               buttonClass={controlButton}
             />

@@ -189,6 +189,30 @@ export async function applyAutoTags(
   );
 }
 
+/**
+ * Adds collections the caller named, without removing any that are already there.
+ *
+ * A name the account does not have yet is created. A name that already matches
+ * a collection — including one the app just assigned, like "Quick read" or a
+ * topic — is left untouched, so this cannot replace a classifier's tag.
+ */
+export async function attachNamedCollections(
+  userId: string,
+  articleId: string,
+  names: readonly string[],
+): Promise<void> {
+  if (names.length === 0) return;
+  const ensured = await ensureTags(
+    userId,
+    names.map((name) => ({ name, kind: "CUSTOM" as const })),
+  );
+  await attachTags(
+    articleId,
+    ensured.map((tag) => tag.id),
+    "MANUAL",
+  );
+}
+
 /** The longest a collection name may be. Long enough for a sentence-ish name. */
 export const MAX_TAG_NAME = 60;
 

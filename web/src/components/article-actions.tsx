@@ -26,12 +26,15 @@ import {
 export function ArticleActions({
   articleId,
   kindleConfigured,
+  canFetch = true,
   onDeleted,
   buttonClass,
 }: {
   articleId: string;
   /** Both a mail transport and a Kindle address are set up. */
   kindleConfigured: boolean;
+  /** False when there is no page to fetch. */
+  canFetch?: boolean;
   /** Called after a successful delete, to leave the reader. */
   onDeleted: () => void;
   buttonClass: string;
@@ -142,16 +145,18 @@ export function ArticleActions({
       >
         {(close) => (
           <>
-            <MenuItem
-              icon={<RefreshIcon />}
-              label={busy === "refetch" ? "Fetching…" : "Fetch"}
-              disabled={busy !== null}
-              testId="refetch-article"
-              onSelect={() => {
-                close();
-                void post(`/api/articles/${articleId}/extract?force=1`, "refetch");
-              }}
-            />
+            {canFetch && (
+              <MenuItem
+                icon={<RefreshIcon />}
+                label={busy === "refetch" ? "Fetching…" : "Fetch"}
+                disabled={busy !== null}
+                testId="refetch-article"
+                onSelect={() => {
+                  close();
+                  void post(`/api/articles/${articleId}/extract?force=1`, "refetch");
+                }}
+              />
+            )}
             <MenuItem
               icon={<SparkleIcon />}
               label={busy === "summary" ? "Summarizing…" : "Summarize"}

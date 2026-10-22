@@ -7,7 +7,9 @@ import {
 } from "@/lib/sort";
 import { autoTagsFor } from "@/lib/auto-tags";
 import { ExtractionError, extractArticle } from "@/lib/extract";
-import { applyAutoTags } from "@/lib/tags";
+import { sourceUrl } from "@/lib/source-url";
+import { prepareTextArticle } from "@/lib/text-article";
+import { applyAutoTags, attachNamedCollections } from "@/lib/tags";
 import { runAiTasksOnSave } from "@/lib/ai-tasks";
 export {
   DEFAULT_ORDER,
@@ -90,7 +92,8 @@ const LIST_SELECT = {
 export function toArticleListItemDTO(row: ArticleListRow): ArticleListItemDTO {
   return {
     id: row.id,
-    url: row.url,
+    // Text articles store a non-link identity in `url`. Callers see null.
+    url: sourceUrl(row.url),
     title: row.title,
     siteName: row.siteName,
     author: row.author,
@@ -308,6 +311,20 @@ export interface SaveArticleOptions {
    * afterwards (share-target saves do this after the response is sent).
    */
   deferExtraction?: boolean;
+  /**
+   * Collection names to add on top of the ones the app assigns. Already
+   * attached tags are left as they are.
+   */
+  collections?: readonly string[];
+}
+
+async function addCollections(
+  userId: string,
+  articleId: string,
+  collections: readonly string[] | undefined,
+): Promise<void> {
+  if (!collections || collections.length === 0) return;
+  await attachNamedCollections(userId, articleId, collections);
 }
 
 /**
@@ -337,9 +354,23 @@ export async function saveArticleFromUrl(
     throw new ExtractionError("invalid-url", `Unsupported scheme: ${parsed.protocol}`);
   }
   const normalizedUrl = parsed.toString();
+  const collections = options?.collections;
+
+  async function done(
+    row: ArticleRow,
+    created: boolean,
+    pendingExtraction: boolean,
+    runAi: boolean,
+  ): Promise<SavedArticle> {
+    // Before classification starts, so a name the caller asked for is already
+    // on the article when the classifier attaches its own topics.
+    await addCollections(userId, row.id, collections);
+    if (runAi) void runAiTasksOnSave(row.id, userId);
+    return { ...row, created, pendingExtraction };
+  }
 
   const resaved = await resaveExisting(userId, normalizedUrl);
-  if (resaved) return { ...resaved, created: false, pendingExtraction: false };
+  if (resaved) return done(resaved, false, false, false);
 
   if (options?.deferExtraction) {
     try {
@@ -351,11 +382,11 @@ export async function saveArticleFromUrl(
           content: "",
         },
       });
-      return { ...row, created: true, pendingExtraction: true };
+      return done(row, true, true, false);
     } catch (err) {
       if (isUniqueConstraintError(err)) {
         const raced = await resaveExisting(userId, normalizedUrl);
-        if (raced) return { ...raced, created: false, pendingExtraction: false };
+        if (raced) return done(raced, false, false, false);
       }
       throw err;
     }
@@ -423,14 +454,88 @@ export async function saveArticleFromUrl(
       }),
     );
 
-    // Fire-and-forget: don't hold up the save on the AI provider.
-    void runAiTasksOnSave(row.id, userId);
-    return { ...row, created: true, pendingExtraction: false };
+    return done(row, true, false, true);
   } catch (err) {
     // Lost a race with a concurrent save of the same URL: fall back to re-save.
     if (isUniqueConstraintError(err)) {
       const raced = await resaveExisting(userId, normalizedUrl);
-      if (raced) return { ...raced, created: false, pendingExtraction: false };
+      if (raced) return done(raced, false, false, false);
+    }
+    throw err;
+  }
+}
+
+export interface TextArticleInput {
+  text: unknown;
+  title?: unknown;
+  author?: unknown;
+}
+
+/**
+ * Save article text that has no page.
+ *
+ * Nothing is fetched. The row has no source link. Length and language tags
+ * are applied immediately, then the caller's collections, then the same
+ * background summary and topic classification a URL save runs.
+ *
+ * The same text saved again is the existing article: it is un-archived, and
+ * any new collection names are added. The title and body stay as first saved.
+ */
+export async function saveArticleFromText(
+  userId: string,
+  input: TextArticleInput,
+  collections?: readonly string[],
+): Promise<SavedArticle> {
+  const prepared = prepareTextArticle(input);
+
+  async function done(
+    row: ArticleRow,
+    created: boolean,
+    runAi: boolean,
+  ): Promise<SavedArticle> {
+    await addCollections(userId, row.id, collections);
+    if (runAi) void runAiTasksOnSave(row.id, userId);
+    return { ...row, created, pendingExtraction: false };
+  }
+
+  const resaved = await resaveExisting(userId, prepared.url);
+  if (resaved) return done(resaved, false, false);
+
+  try {
+    const row = await prisma.article.create({
+      data: {
+        userId,
+        url: prepared.url,
+        title: prepared.title,
+        author: prepared.author,
+        excerpt: prepared.excerpt,
+        content: prepared.content,
+        wordCount: prepared.wordCount,
+        readingMinutes: prepared.readingMinutes,
+        lang: prepared.lang,
+      },
+    });
+
+    await applyAutoTags(
+      userId,
+      row.id,
+      autoTagsFor({
+        url: prepared.url,
+        wordCount: prepared.wordCount,
+        content: prepared.content,
+        leadImageUrl: null,
+        lang: prepared.lang,
+        extractionFailed: false,
+        isProduct: false,
+        hasEmbeddedMedia: false,
+      }),
+    );
+
+    return done(row, true, true);
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      const raced = await resaveExisting(userId, prepared.url);
+      if (raced) return done(raced, false, false);
     }
     throw err;
   }

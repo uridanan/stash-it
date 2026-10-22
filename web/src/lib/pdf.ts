@@ -5,6 +5,7 @@ import PDFDocument from "pdfkit";
 import bidiFactory from "bidi-js";
 
 import { htmlToBlocks, runsToText, type Block, type InlineRun } from "@/lib/doc-blocks";
+import { sourceUrl } from "@/lib/source-url";
 
 /**
  * Article → PDF.
@@ -328,6 +329,7 @@ function byline(article: PdfArticle): string {
 
 /** Renders one article as a PDF document. */
 export function buildPdf(article: PdfArticle): Promise<Buffer> {
+  const link = sourceUrl(article.url);
   const doc = new PDFDocument({
     size: "A4",
     margin: PAGE_MARGIN,
@@ -346,7 +348,7 @@ export function buildPdf(article: PdfArticle): Promise<Buffer> {
       ...(article.author || article.siteName
         ? { Author: article.author ?? article.siteName ?? "" }
         : {}),
-      Subject: article.url,
+      ...(link ? { Subject: link } : {}),
       Creator: "Stash",
     },
   });
@@ -388,11 +390,13 @@ export function buildPdf(article: PdfArticle): Promise<Buffer> {
       color: MUTED,
     });
   }
-  drawRuns(doc, [{ text: article.url, href: article.url }], {
-    x: left,
-    width: contentWidth,
-    size: 9.5,
-  });
+  if (link) {
+    drawRuns(doc, [{ text: link, href: link }], {
+      x: left,
+      width: contentWidth,
+      size: 9.5,
+    });
+  }
 
   doc.moveDown(0.8);
   doc
@@ -431,10 +435,12 @@ export function buildPdf(article: PdfArticle): Promise<Buffer> {
   if (blocks.length === 0) {
     drawRuns(
       doc,
-      [
-        { text: "No article text was saved. Read it at the source: " },
-        { text: article.url, href: article.url },
-      ],
+      link
+        ? [
+            { text: "No article text was saved. Read it at the source: " },
+            { text: link, href: link },
+          ]
+        : [{ text: "No article text was saved." }],
       { x: left, width: contentWidth, size: BODY_SIZE, color: MUTED, base: "italic" },
     );
   }

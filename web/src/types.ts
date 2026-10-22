@@ -11,7 +11,11 @@ export type ArticleState = "UNREAD" | "ARCHIVED";
 
 export interface ArticleListItemDTO {
   id: string;
-  url: string;
+  /**
+   * The page this article was saved from. Null when it was saved as text and
+   * has no source to open.
+   */
+  url: string | null;
   title: string;
   siteName: string | null;
   author: string | null;

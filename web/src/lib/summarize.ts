@@ -5,6 +5,7 @@ import {
   postJson,
   toProviderError,
 } from "@/lib/ai-provider";
+import { sourceUrl } from "@/lib/source-url";
 
 /**
  * AI article summaries. The user picks a model, supplies their own API key,
@@ -88,10 +89,11 @@ export function htmlToText(html: string): string {
 
 function buildUserMessage(input: SummaryInput): string {
   const text = htmlToText(input.content).slice(0, MAX_ARTICLE_CHARS);
+  const link = sourceUrl(input.url);
   return [
     `Title: ${input.title}`,
     input.siteName ? `Source: ${input.siteName}` : null,
-    `URL: ${input.url}`,
+    link ? `URL: ${link}` : null,
     "",
     "Article text:",
     text || "(no readable text was extracted from this page)",

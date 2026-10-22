@@ -3,6 +3,8 @@ import TurndownService from "turndown";
 // @ts-ignore -- the GFM plugin ships no types
 import { gfm } from "turndown-plugin-gfm";
 
+import { sourceUrl } from "@/lib/source-url";
+
 /**
  * Markdown rendering of an article, for the one-way readable export.
  *
@@ -122,11 +124,9 @@ export function articleFilename(
 }
 
 export function frontmatter(article: MarkdownArticle): string {
-  const lines = [
-    "---",
-    `title: ${yamlScalar(article.title)}`,
-    `url: ${yamlScalar(article.url)}`,
-  ];
+  const link = sourceUrl(article.url);
+  const lines = ["---", `title: ${yamlScalar(article.title)}`];
+  if (link) lines.push(`url: ${yamlScalar(link)}`);
   if (article.siteName) lines.push(`source: ${yamlScalar(article.siteName)}`);
   if (article.author) lines.push(`author: ${yamlScalar(article.author)}`);
   lines.push(`saved: ${yamlScalar(article.savedAt.toISOString())}`);
@@ -148,6 +148,7 @@ export function frontmatter(article: MarkdownArticle): string {
 
 /** One article as a Markdown document: frontmatter, summary, then the body. */
 export function articleToMarkdown(article: MarkdownArticle): string {
+  const link = sourceUrl(article.url);
   const parts = [frontmatter(article), "", `# ${article.title}`, ""];
 
   if (article.summary?.trim()) {
@@ -157,16 +158,18 @@ export function articleToMarkdown(article: MarkdownArticle): string {
   const body = htmlToMarkdown(article.content);
   if (body) {
     parts.push("## Article", "", body, "");
-  } else {
+  } else if (link) {
     parts.push(
       "## Article",
       "",
-      `*No article text was saved. [Read it at the source](${article.url}).*`,
+      `*No article text was saved. [Read it at the source](${link}).*`,
       "",
     );
+  } else {
+    parts.push("## Article", "", "*No article text was saved.*", "");
   }
 
-  parts.push("---", "", `[Original](${article.url})`, "");
+  if (link) parts.push("---", "", `[Original](${link})`, "");
   return parts.join("\n");
 }
 

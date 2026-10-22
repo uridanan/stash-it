@@ -105,6 +105,12 @@ describe("buildPdf", () => {
     expect(pageCount(pdf)).toBe(1);
   });
 
+  it("omits the source link when the article has no page", async () => {
+    const pdf = (await buildPdf(article({ url: "stash-text:abc" }))).toString("latin1");
+    expect(pdf.startsWith("%PDF-")).toBe(true);
+    expect(pdf).not.toContain("stash-text:");
+  });
+
   it("carries the title into the document metadata", async () => {
     const pdf = (await buildPdf(article({ title: "Metadata Test" }))).toString("latin1");
     expect(pdf).toContain("Metadata Test");

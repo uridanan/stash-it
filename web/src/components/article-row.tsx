@@ -6,14 +6,14 @@ import { useEffect, useState } from "react";
 
 import { onArticleRead } from "@/components/article-read";
 import { SelectCheckbox, useLongPressSelect, useSelection } from "@/components/article-selection";
-import { TrashIcon } from "@/components/icons";
+import { CheckIcon, TrashIcon } from "@/components/icons";
 import { TagChips } from "@/components/tag-chips";
 import type { ArticleTagDTO } from "@/types";
 
 export type ArticleRowData = {
   id: string;
   title: string;
-  url: string;
+  url: string | null;
   siteName: string | null;
   excerpt: string | null;
   readingMinutes: number;
@@ -114,16 +114,20 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
         <p className="mt-1 text-sm text-slate-500">
           {article.siteName && (
             <>
-              <a
-                href={article.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(event) => event.stopPropagation()}
-                title={`Open on ${article.siteName}`}
-                className="hover:text-violet-700 hover:underline"
-              >
-                {article.siteName}
-              </a>
+              {article.url ? (
+                <a
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                  title={`Open on ${article.siteName}`}
+                  className="hover:text-violet-700 hover:underline"
+                >
+                  {article.siteName}
+                </a>
+              ) : (
+                <span>{article.siteName}</span>
+              )}
               {" · "}
             </>
           )}
@@ -167,13 +171,13 @@ export function ArticleRow({ article }: { article: ArticleRowData }) {
           aria-label={archived ? "Mark as unread" : "Mark as read"}
           // One control, two states: the tick carries the read/unread status
           // in its colour rather than needing a second button beside it.
-          className={`flex h-12 w-12 items-center justify-center rounded-lg text-xl transition-colors hover:bg-slate-100 disabled:opacity-50 ${
+          className={`flex h-12 w-12 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 disabled:opacity-50 ${
             archived
-              ? "text-violet-600 hover:text-violet-700"
-              : "text-slate-400 hover:text-slate-700"
+              ? "text-cyan-600 hover:text-cyan-700"
+              : "text-slate-400 hover:text-slate-600"
           }`}
         >
-          ✓
+          <CheckIcon />
         </button>
         <SelectCheckbox
           articleId={article.id}

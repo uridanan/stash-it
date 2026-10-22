@@ -12,6 +12,8 @@
  * renders as the article.
  */
 
+import { sourceUrl } from "@/lib/source-url";
+
 const SUMMARY_MARKER = "<!--stash:summary-->";
 const CONTENT_MARKER = "<!--stash:content-->";
 const END_MARKER = "<!--stash:end-->";
@@ -46,13 +48,14 @@ export interface ArticleFilePayload {
 }
 
 export function buildArticleFile(payload: ArticleFilePayload): string {
+  const link = sourceUrl(payload.url);
   const parts = [
     "<!doctype html>",
     `<html lang="${escapeText(payload.lang ?? "en")}">`,
     "<head>",
     '<meta charset="utf-8">',
     `<title>${escapeText(payload.title)}</title>`,
-    `<link rel="canonical" href="${escapeText(payload.url)}">`,
+    ...(link ? [`<link rel="canonical" href="${escapeText(link)}">`] : []),
     "</head>",
     "<body>",
   ];

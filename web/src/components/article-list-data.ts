@@ -1,10 +1,11 @@
 import type { ArticleRowData } from "@/components/article-row";
+import { sourceUrl } from "@/lib/source-url";
 import type { ArticleTagDTO } from "@/types";
 
 /** Structural shape of an article as returned by the data layer. */
 export type ArticleListItem = {
   id: string;
-  url: string;
+  url: string | null;
   title: string;
   siteName: string | null;
   excerpt: string | null;
@@ -24,7 +25,7 @@ export function toRowData(
     tags,
     id: article.id,
     title: article.title,
-    url: article.url,
+    url: sourceUrl(article.url),
     siteName: article.siteName,
     excerpt: article.excerpt,
     readingMinutes: article.readingMinutes,

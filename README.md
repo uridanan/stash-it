@@ -109,6 +109,45 @@ and then starts the standalone Next.js server. Postgres data persists in the
 5. Save pages via the toolbar popup or the right-click **Save to Stash**
    context menu.
 
+## Adding articles from the API
+
+Both calls authenticate with `Authorization: Bearer stash_…` (or a signed-in
+session). `collections` is optional on each. Those names are added to the
+article and do not replace the collections the app assigns on its own — length,
+language, and, once the background pass finishes, topics. The summary is
+written in that same background pass.
+
+Save a URL. This is the same save the app and the extension use. A URL that is
+already in the library is returned as-is (un-archived) and any new collection
+names are added.
+
+```http
+POST /api/articles
+Content-Type: application/json
+
+{ "url": "https://example.com/story", "collections": ["Reading"] }
+```
+
+Save full text, when there is no page to fetch — an email, a note, anything an
+agent already has as text. Nothing is downloaded, and the article has no source
+link. `title` and `author` are optional; without a title the first line is
+used. Sending the same text again returns the existing article and adds any
+new collections.
+
+```http
+POST /api/articles/text
+Content-Type: application/json
+
+{
+  "title": "Board update",
+  "text": "The full text of the article.",
+  "collections": ["From email"]
+}
+```
+
+A new article responds `201` with `{ "article": { … } }`. Text articles have
+`"url": null`. An article that was already saved responds `200`.
+
 ## Send to Kindle
 
 The reader's ⋯ menu can mail an article to a Kindle as an EPUB (which reflows on

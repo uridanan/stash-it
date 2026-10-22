@@ -103,6 +103,17 @@ describe("chapterXhtml", () => {
     expect(xhtml).toContain("No article text was saved");
     expect(() => parseXml(xhtml)).not.toThrow();
   });
+
+  it("omits the source link when the article has no page", () => {
+    const xhtml = chapterXhtml(article({ url: "stash-text:abc" }));
+    expect(xhtml).not.toContain("stash-text:");
+    expect(xhtml).not.toContain('class="source"');
+    expect(() => parseXml(xhtml)).not.toThrow();
+    const opf = packageOpf(article({ url: "stash-text:abc" }), new Date("2026-01-02T03:04:05.678Z"));
+    expect(opf).not.toContain("stash-text:");
+    expect(opf).not.toContain("dc:source");
+    expect(() => parseXml(opf)).not.toThrow();
+  });
 });
 
 describe("navXhtml", () => {

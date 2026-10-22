@@ -5,6 +5,7 @@ import {
   postJson,
   toProviderError,
 } from "@/lib/ai-provider";
+import { sourceUrl } from "@/lib/source-url";
 import { htmlToText, SUMMARY_MODELS } from "@/lib/summarize";
 import { MAX_TOPICS_PER_ARTICLE, topicVocabulary } from "@/lib/taxonomy";
 
@@ -59,10 +60,11 @@ function buildPrompt(vocabulary: readonly string[]): string {
 
 function buildUserMessage(input: ClassifyInput): string {
   const text = htmlToText(input.content).slice(0, MAX_CLASSIFY_CHARS);
+  const link = sourceUrl(input.url);
   return [
     `Title: ${input.title}`,
     input.siteName ? `Source: ${input.siteName}` : null,
-    `URL: ${input.url}`,
+    link ? `URL: ${link}` : null,
     "",
     "Article text:",
     text || "(no readable text was extracted from this page)",

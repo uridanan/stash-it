@@ -74,6 +74,12 @@ describe("buildArticleFile / parseArticleFile", () => {
     expect(file).toContain('href="https://example.com/a"');
   });
 
+  it("omits the canonical link when the article has no page", () => {
+    const file = buildArticleFile(payload({ url: "stash-text:abc" }));
+    expect(file).not.toContain("canonical");
+    expect(file).not.toContain("stash-text:");
+  });
+
   it("escapes the title and url in the header", () => {
     const file = buildArticleFile(
       payload({ title: 'Tom & Jerry <hi>', url: "https://x.com/?a=1&b=2" }),

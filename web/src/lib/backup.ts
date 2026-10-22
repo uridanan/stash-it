@@ -3,6 +3,7 @@ import { autoTagsFor } from "@/lib/auto-tags";
 import type { InstapaperRow } from "@/lib/instapaper";
 import { mapFolder, readingStatePatch } from "@/lib/instapaper";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
+import { isTextArticleUrl } from "@/lib/source-url";
 import { htmlToText } from "@/lib/summarize";
 import { applyAutoTags } from "@/lib/tags";
 import {
@@ -652,6 +653,9 @@ export async function fillStub(
     select: { id: true, url: true, content: true, extractionFailed: true },
   });
   if (!article) return { ok: false, reason: "not found" };
+  // The text was supplied when the article was saved. There is no page to fetch,
+  // and trying the internal identity would mark a good article as failed.
+  if (isTextArticleUrl(article.url)) return { ok: true };
   if (!options.force && !isStub(article)) return { ok: true };
 
   const { extractArticle } = await import("@/lib/extract");

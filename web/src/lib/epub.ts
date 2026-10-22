@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import sanitizeHtml from "sanitize-html";
 
 import { SANITIZE_OPTIONS } from "@/lib/sanitize";
+import { sourceUrl } from "@/lib/source-url";
 
 /**
  * Article → EPUB 3.
@@ -127,6 +128,7 @@ function summaryHtml(summary: string): string {
 export function chapterXhtml(article: EpubArticle): string {
   const lang = epubLang(article.lang);
   const body = toXhtmlFragment(article.content);
+  const link = sourceUrl(article.url);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}">
   <head>
@@ -140,8 +142,7 @@ export function chapterXhtml(article: EpubArticle): string {
 ${article.summary?.trim() ? `    ${summaryHtml(article.summary.trim())}\n` : ""}    <section epub:type="bodymatter">
 ${body || `      <p><em>No article text was saved.</em></p>`}
     </section>
-    <p class="source"><a href="${xmlEscape(article.url)}">${xmlEscape(article.url)}</a></p>
-  </body>
+${link ? `    <p class="source"><a href="${xmlEscape(link)}">${xmlEscape(link)}</a></p>\n` : ""}  </body>
 </html>
 `;
 }
@@ -173,6 +174,7 @@ export function packageOpf(article: EpubArticle, modified: Date): string {
     .map((tag) => `    <dc:subject>${xmlEscape(tag)}</dc:subject>`)
     .join("\n");
   const creator = article.author ?? article.siteName;
+  const link = sourceUrl(article.url);
   // dcterms:modified must be a whole-second UTC timestamp; anything else is a
   // package-document error.
   const stamp = `${modified.toISOString().slice(0, 19)}Z`;
@@ -183,8 +185,7 @@ export function packageOpf(article: EpubArticle, modified: Date): string {
     <dc:identifier id="pub-id">urn:stash:article:${xmlEscape(article.id)}</dc:identifier>
     <dc:title>${xmlEscape(article.title)}</dc:title>
     <dc:language>${lang}</dc:language>
-${creator ? `    <dc:creator>${xmlEscape(creator)}</dc:creator>\n` : ""}    <dc:source>${xmlEscape(article.url)}</dc:source>
-    <dc:date>${article.savedAt.toISOString()}</dc:date>
+${creator ? `    <dc:creator>${xmlEscape(creator)}</dc:creator>\n` : ""}${link ? `    <dc:source>${xmlEscape(link)}</dc:source>\n` : ""}    <dc:date>${article.savedAt.toISOString()}</dc:date>
 ${subjects ? `${subjects}\n` : ""}    <meta property="dcterms:modified">${stamp}</meta>
   </metadata>
   <manifest>

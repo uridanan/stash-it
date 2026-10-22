@@ -17,6 +17,7 @@ import { PrismaClient } from "@prisma/client";
 
 import { autoTagsFor } from "../src/lib/auto-tags";
 import { extractArticle } from "../src/lib/extract";
+import { TEXT_ARTICLE_PREFIX } from "../src/lib/source-url";
 import { applyAutoTags } from "../src/lib/tags";
 
 const prisma = new PrismaClient();
@@ -40,6 +41,9 @@ async function main() {
   const articles = await prisma.article.findMany({
     where: {
       extractionFailed: false,
+      // Text articles have no page to re-fetch, and English ones often have
+      // no declared language, which would otherwise select every one of them.
+      NOT: { url: { startsWith: TEXT_ARTICLE_PREFIX } },
       // Only rows that predate the new columns.
       OR: [{ publishedAt: null }, { lang: null }],
     },
