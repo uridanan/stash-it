@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { getArticle, listArticles, parseOrder, parseSort } from "@/lib/articles";
 import { tagsForArticles } from "@/lib/tags";
 import { ArticleList } from "@/components/article-list";
+import { StarIcon } from "@/components/icons";
 import { toRowData } from "@/components/article-list-data";
 import { AppShell } from "@/components/app-shell";
 import { SplitView } from "@/components/split-view";
@@ -44,7 +45,7 @@ export default async function StarredPage({
     : null;
 
   return (
-    <AppShell active="starred" q={q} wide>
+    <AppShell active="starred" q={q} wide barTitle={{ label: "Starred", icon: "star" }}>
       <SplitView
         article={selected}
         requestedId={articleId}
@@ -52,6 +53,7 @@ export default async function StarredPage({
           <>
           <ArticleList
             heading="Starred"
+            headingIcon={<StarIcon className="h-6 w-6 shrink-0" strokeWidth={1.8} />}
             articles={articles.map((a) =>
               toRowData(a, tagsByArticle.get(a.id) ?? []),
             )}

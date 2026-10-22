@@ -23,6 +23,8 @@ export interface TagRow {
   slug: string;
   kind: TagKind;
   articleCount: number;
+  /** Articles in this collection whose state is ARCHIVED (read). */
+  readCount: number;
 }
 
 export interface ArticleTagRow {
@@ -35,23 +37,32 @@ export interface ArticleTagRow {
 
 /** All of a user's tags with their article counts, most-used first. */
 export async function listTags(userId: string): Promise<TagRow[]> {
-  const tags = await prisma.tag.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      kind: true,
-      _count: { select: { articles: true } },
-    },
-    orderBy: [{ name: "asc" }],
-  });
+  const [tags, readCounts] = await Promise.all([
+    prisma.tag.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        kind: true,
+        _count: { select: { articles: true } },
+      },
+      orderBy: [{ name: "asc" }],
+    }),
+    prisma.articleTag.groupBy({
+      by: ["tagId"],
+      where: { tag: { userId }, article: { state: "ARCHIVED" } },
+      _count: { _all: true },
+    }),
+  ]);
+  const readByTag = new Map(readCounts.map((row) => [row.tagId, row._count._all]));
   return tags.map((tag) => ({
     id: tag.id,
     name: tag.name,
     slug: tag.slug,
     kind: tag.kind,
     articleCount: tag._count.articles,
+    readCount: readByTag.get(tag.id) ?? 0,
   }));
 }
 

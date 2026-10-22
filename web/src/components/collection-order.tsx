@@ -23,7 +23,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { announceArticleFlags, onArticleFlags } from "@/components/article-read";
-import { CheckIcon, ChevronLeftIcon, HeadphonesIcon, TrashIcon } from "@/components/icons";
+import { CheckIcon, ChevronLeftIcon, HeadphonesIcon, TagIcon, TrashIcon } from "@/components/icons";
 import { useListen } from "@/components/listen/listen-provider";
 import {
   SelectCheckbox,
@@ -157,6 +157,10 @@ export function CollectionOrder({
   return (
     <SelectionProvider>
     <div>
+      <h1 className="mb-1 flex min-w-0 items-center gap-2 text-lg font-bold text-slate-900 max-md:hidden">
+        <TagIcon className="h-6 w-6 shrink-0" strokeWidth={1.8} />
+        <span className="truncate">{name}</span>
+      </h1>
       <div className="relative flex flex-nowrap items-center gap-1">
         <Link
           href="/tags"
@@ -166,9 +170,6 @@ export function CollectionOrder({
         >
           <ChevronLeftIcon className="h-7 w-7 max-lg:h-8 max-lg:w-8" />
         </Link>
-        <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-slate-900">
-          {name}
-        </h1>
         <CollectionTools
           unreadOnly={unreadOnly}
           totalCount={totalCount}
@@ -521,7 +522,7 @@ function SortableRow({
           aria-label={starred ? "Unstar" : "Star"}
           className={`flex h-12 w-12 items-center justify-center rounded-lg text-xl transition-colors hover:bg-slate-100 disabled:opacity-50 ${
             starred
-              ? "!text-cyan-300 hover:!bg-cyan-50"
+              ? "!text-violet-700 hover:!bg-violet-50"
               : "text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -535,7 +536,7 @@ function SortableRow({
           aria-label={read ? "Mark as unread" : "Mark as read"}
           className={`flex h-12 w-12 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 disabled:opacity-50 ${
             read
-              ? "!text-cyan-300 hover:!bg-cyan-50"
+              ? "!text-violet-700 hover:!bg-violet-50"
               : "!text-slate-300 hover:!text-slate-400"
           }`}
         >

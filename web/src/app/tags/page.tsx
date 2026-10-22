@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { AppShell } from "@/components/app-shell";
+import { CollectionIndex } from "@/components/collection-index";
 import { listTags } from "@/lib/tags";
 
 export const metadata: Metadata = {
@@ -37,23 +37,7 @@ export default async function TagsPage() {
           </p>
         </div>
       ) : (
-        <ul data-testid="tag-list" className="mt-6">
-          {tags.map((tag) => (
-            <li key={tag.id} className="border-b border-slate-100">
-              <Link
-                href={`/tags/${tag.slug}`}
-                className="flex items-center justify-between py-3 transition-colors hover:text-violet-700"
-              >
-                <span className="text-sm font-medium text-slate-900">
-                  {tag.name}
-                </span>
-                <span className="text-xs text-slate-400">
-                  {tag.articleCount}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <CollectionIndex tags={tags} />
       )}
     </AppShell>
   );

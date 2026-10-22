@@ -46,6 +46,8 @@ export interface TagDTO {
   slug: string;
   kind: TagKind;
   articleCount: number;
+  /** Articles in this collection that have been read. */
+  readCount: number;
 }
 
 export type TagKind =

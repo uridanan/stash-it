@@ -854,7 +854,7 @@ function SelectionActions({
               aria-pressed={allStarred}
               data-testid="selection-star"
               className={`${actionButton} ${
-                allStarred ? "!text-cyan-300 hover:!bg-cyan-50" : "text-slate-400"
+                allStarred ? "!text-violet-700 hover:!bg-violet-50" : "text-slate-400"
               }`}
             >
               <StarIcon filled={allStarred} />
@@ -871,7 +871,7 @@ function SelectionActions({
               data-testid="selection-read"
               className={`${actionButton} ${
                 allRead
-                  ? "!text-cyan-300 hover:!bg-cyan-50"
+                  ? "!text-violet-700 hover:!bg-violet-50"
                   : "!text-slate-300 hover:!text-slate-400"
               }`}
             >

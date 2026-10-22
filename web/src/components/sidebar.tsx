@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 
 import { AddUrlLauncher } from "@/components/add-url";
+import { CheckIcon, StarIcon, TagIcon } from "@/components/icons";
 import { SortControl } from "@/components/sort-control";
 
 export type ActiveNav =
@@ -46,11 +47,7 @@ const NAV_ITEMS: {
     key: "archive",
     label: "Read",
     href: "/archive",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 shrink-0" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 5h17v4h-17zM5 9v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4" />
-      </svg>
-    ),
+    icon: <CheckIcon className="h-6 w-6 shrink-0" />,
   },
   {
     key: "starred",
@@ -82,6 +79,12 @@ export interface SidebarTag {
   articleCount: number;
 }
 
+/** Mobile title bar for Read, Starred, and an open collection. Home stays "Stash". */
+export interface BarTitle {
+  label: string;
+  icon: "check" | "star" | "tag";
+}
+
 /** Article totals for Home (unread), Read, and Starred. */
 export interface NavCounts {
   home: number;
@@ -99,6 +102,8 @@ interface SidebarProps {
   tags?: SidebarTag[];
   /** Slug of the collection currently open, for highlighting. */
   activeTagSlug?: string;
+  /** Replaces "Stash" in the phone title bar. */
+  barTitle?: BarTitle;
 }
 
 function Avatar({ user, className }: { user: SidebarUser; className: string }) {
@@ -302,7 +307,35 @@ function SidebarContent({
   return (
     <>
       <div className="min-h-0 flex-1 overflow-y-auto">
-      <nav className="flex flex-col gap-1 px-2">
+      <div className="px-2">
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={onExpand}
+            title="Search"
+            aria-label="Search"
+            className="flex min-h-12 w-full items-center justify-center rounded-lg px-2.5 py-3 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+          >
+            <SearchIcon />
+          </button>
+        ) : (
+          <form action={searchPath} method="get" role="search" className="relative">
+            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+              <SearchIcon />
+            </span>
+            <input
+              type="search"
+              name="q"
+              defaultValue={q ?? ""}
+              placeholder="Search"
+              aria-label="Search articles"
+              className="min-h-12 w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-11 pr-3 text-base outline-none transition-colors focus:border-violet-600 focus:bg-white"
+            />
+          </form>
+        )}
+      </div>
+
+      <nav className="mt-3 flex flex-col gap-1 px-2">
         {NAV_ITEMS.map((item) => (
           <Link
             key={item.key}
@@ -339,34 +372,6 @@ function SidebarContent({
           onNavigate={onNavigate}
         />
       </nav>
-
-      <div className="mt-3 px-2">
-        {collapsed ? (
-          <button
-            type="button"
-            onClick={onExpand}
-            title="Search"
-            aria-label="Search"
-            className="flex min-h-12 w-full items-center justify-center rounded-lg px-2.5 py-3 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-          >
-            <SearchIcon />
-          </button>
-        ) : (
-          <form action={searchPath} method="get" role="search" className="relative">
-            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
-              <SearchIcon />
-            </span>
-            <input
-              type="search"
-              name="q"
-              defaultValue={q ?? ""}
-              placeholder="Search"
-              aria-label="Search articles"
-              className="min-h-12 w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-11 pr-3 text-base outline-none transition-colors focus:border-violet-600 focus:bg-white"
-            />
-          </form>
-        )}
-      </div>
       </div>
 
       <div
@@ -433,6 +438,35 @@ function SidebarContent({
   );
 }
 
+function MobileTitle({ barTitle }: { barTitle?: BarTitle }) {
+  if (!barTitle) {
+    return (
+      <Link
+        href="/"
+        className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight text-slate-900"
+      >
+        Stash
+      </Link>
+    );
+  }
+
+  const icon =
+    barTitle.icon === "check" ? (
+      <CheckIcon className="h-6 w-6 shrink-0" />
+    ) : barTitle.icon === "star" ? (
+      <StarIcon className="h-6 w-6 shrink-0" strokeWidth={1.8} />
+    ) : (
+      <TagIcon className="h-6 w-6 shrink-0" strokeWidth={1.8} />
+    );
+
+  return (
+    <h1 className="flex min-w-0 flex-1 items-center gap-2 text-lg font-bold tracking-tight text-slate-900">
+      {icon}
+      <span className="truncate">{barTitle.label}</span>
+    </h1>
+  );
+}
+
 export function Sidebar(props: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -468,12 +502,10 @@ export function Sidebar(props: SidebarProps) {
             <path strokeLinecap="round" d="M4 6.5h16M4 12h16M4 17.5h16" />
           </svg>
         </button>
-        <Link href="/" className="text-lg font-bold tracking-tight text-slate-900">
-          Stash
-        </Link>
+        <MobileTitle barTitle={props.barTitle} />
         {props.active === "home" || props.active === "archive" || props.active === "starred" ? (
           <Suspense fallback={null}>
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
               {props.active === "home" ? <AddUrlLauncher /> : null}
               <SortControl />
             </div>

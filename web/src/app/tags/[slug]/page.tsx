@@ -89,7 +89,12 @@ export default async function TagPage({
     // Split view, like the article lists: on desktop the collection stays on
     // the left while its articles open on the right, so the running order
     // remains visible while reading or listening through it.
-    <AppShell active="tags" activeTagSlug={slug} wide>
+    <AppShell
+      active="tags"
+      activeTagSlug={slug}
+      wide
+      barTitle={{ label: tag.name, icon: "tag" }}
+    >
       <SplitView
         article={selected}
         requestedId={articleId}

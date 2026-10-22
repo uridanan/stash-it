@@ -41,10 +41,12 @@ function FlagSync() {
 
 function ListHeader({
   heading,
+  headingIcon,
   leading,
   targets,
 }: {
   heading?: string;
+  headingIcon?: ReactNode;
   leading?: ReactNode;
   targets: { id: string; starred: boolean; archived: boolean; tagSlugs: string[] }[];
 }) {
@@ -54,11 +56,14 @@ function ListHeader({
   return (
     <div
       className={`flex w-full min-w-0 items-center gap-2 ${
-        heading || choosing ? "mb-4" : "mb-4 max-md:mb-0"
+        choosing ? "mb-4" : "mb-4 max-md:mb-0"
       }`}
     >
       {heading ? (
-        <h1 className="text-xl font-bold text-slate-900">{heading}</h1>
+        <h1 className="flex min-w-0 items-center gap-2 text-xl font-bold text-slate-900 max-md:hidden">
+          {headingIcon}
+          <span className="truncate">{heading}</span>
+        </h1>
       ) : null}
       {choosing ? null : leading}
       <SelectionToolbar articles={targets}>
@@ -87,14 +92,16 @@ export function ArticleList({
   emptyHint,
   page,
   heading,
+  headingIcon,
   leading,
 }: {
   articles: ArticleRowData[];
   emptyTitle: string;
   emptyHint: string;
   page?: ArticleListPage;
-  /** Shown on the left of the sort row. Home leaves this off. */
+  /** Shown on the left of the sort row. Home leaves this off. Phones use the title bar. */
   heading?: string;
+  headingIcon?: ReactNode;
   /** Desktop save field. Phones use the title-bar button instead. */
   leading?: ReactNode;
 }) {
@@ -198,7 +205,12 @@ export function ArticleList({
   return (
     <SelectionProvider>
       <FlagSync />
-      <ListHeader heading={heading} leading={leading} targets={targets} />
+      <ListHeader
+        heading={heading}
+        headingIcon={headingIcon}
+        leading={leading}
+        targets={targets}
+      />
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
           <p className="text-base font-medium text-slate-700">{emptyTitle}</p>

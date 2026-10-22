@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { getArticle, listArticles, parseOrder, parseSort } from "@/lib/articles";
 import { tagsForArticles } from "@/lib/tags";
 import { ArticleList } from "@/components/article-list";
+import { CheckIcon } from "@/components/icons";
 import { toRowData } from "@/components/article-list-data";
 import { AppShell } from "@/components/app-shell";
 import { SplitView } from "@/components/split-view";
@@ -42,7 +43,7 @@ export default async function ArchivePage({
     : null;
 
   return (
-    <AppShell active="archive" q={q} wide>
+    <AppShell active="archive" q={q} wide barTitle={{ label: "Read", icon: "check" }}>
       <SplitView
         article={selected}
         requestedId={articleId}
@@ -50,6 +51,7 @@ export default async function ArchivePage({
           <>
           <ArticleList
             heading="Read"
+            headingIcon={<CheckIcon className="h-6 w-6 shrink-0" />}
             articles={articles.map((a) =>
               toRowData(a, tagsByArticle.get(a.id) ?? []),
             )}

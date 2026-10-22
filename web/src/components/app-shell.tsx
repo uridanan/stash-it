@@ -1,5 +1,5 @@
 import { auth, signOut } from "@/auth";
-import { Sidebar, type ActiveNav } from "@/components/sidebar";
+import { Sidebar, type ActiveNav, type BarTitle } from "@/components/sidebar";
 import { ListenProvider } from "@/components/listen/listen-provider";
 import { libraryCounts } from "@/lib/articles";
 import { listTags } from "@/lib/tags";
@@ -14,6 +14,7 @@ export async function AppShell({
   active,
   q,
   activeTagSlug,
+  barTitle,
   mainClassName = "py-6",
   wide = false,
   children,
@@ -22,6 +23,8 @@ export async function AppShell({
   q?: string;
   /** Slug of the collection being viewed, so the sidebar can highlight it. */
   activeTagSlug?: string;
+  /** Phone title bar. Omitted on Home, which keeps the app name. */
+  barTitle?: BarTitle;
   mainClassName?: string;
   /** Skip the centered column; children manage their own layout (split view). */
   wide?: boolean;
@@ -49,6 +52,7 @@ export async function AppShell({
         active={active}
         q={q}
         activeTagSlug={activeTagSlug}
+        barTitle={barTitle}
         counts={{
           home: counts.unread,
           archive: counts.read,

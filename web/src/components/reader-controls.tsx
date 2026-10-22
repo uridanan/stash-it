@@ -127,7 +127,7 @@ export function ReaderControls({
 
   const controlButton =
     "flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-violet-50 hover:text-violet-700 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-600";
-  const toggleOn = "!text-cyan-300 hover:!bg-cyan-50 hover:!text-cyan-300";
+  const toggleOn = "!text-violet-700 hover:!bg-violet-50 hover:!text-violet-700";
 
   return (
     <div>
@@ -170,7 +170,7 @@ export function ReaderControls({
               aria-pressed={shownStarred}
               data-testid="reader-star-toggle"
               className={`${controlButton} ${
-                shownStarred ? toggleOn : "!text-slate-400 hover:!bg-cyan-50 hover:!text-cyan-300"
+                shownStarred ? toggleOn : "!text-slate-400 hover:!bg-violet-50 hover:!text-violet-700"
               }`}
             >
               <StarIcon filled={shownStarred} />
@@ -184,7 +184,7 @@ export function ReaderControls({
               aria-pressed={shownArchived}
               data-testid="reader-read-toggle"
               className={`${controlButton} ${
-                shownArchived ? toggleOn : "!text-slate-300 hover:!bg-cyan-50 hover:!text-cyan-300"
+                shownArchived ? toggleOn : "!text-slate-300 hover:!bg-violet-50 hover:!text-violet-700"
               }`}
             >
               <CheckIcon strokeWidth={shownArchived ? 3.4 : 1.6} />

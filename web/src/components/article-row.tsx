@@ -165,7 +165,7 @@ export function ArticleRow({
           <span>{article.readingMinutes} min read</span>
           <span> · {article.savedAtLabel}</span>
           {starred && (
-            <span className="text-cyan-300"> · ★ starred</span>
+            <span className="text-violet-700"> · ★</span>
           )}
         </p>
         {article.excerpt && (
@@ -190,7 +190,7 @@ export function ArticleRow({
           aria-label={starred ? "Unstar" : "Star"}
           className={`flex h-12 w-12 items-center justify-center rounded-lg text-xl transition-colors hover:bg-slate-100 disabled:opacity-50 ${
             starred
-              ? "!text-cyan-300 hover:!bg-cyan-50"
+              ? "!text-violet-700 hover:!bg-violet-50"
               : "text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -206,7 +206,7 @@ export function ArticleRow({
           // in its colour rather than needing a second button beside it.
           className={`flex h-12 w-12 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 disabled:opacity-50 ${
             archived
-              ? "!text-cyan-300 hover:!bg-cyan-50"
+              ? "!text-violet-700 hover:!bg-violet-50"
               : "!text-slate-300 hover:!text-slate-400"
           }`}
         >
