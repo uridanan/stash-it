@@ -50,8 +50,8 @@ model User {
   image     String?
   createdAt DateTime @default(now())
 
-  /** Whether this person wants summaries written for them. */
-  aiSummariesEnabled Boolean @default(false)
+  /** Whether this person wants summaries written for them. On unless they turn it off. */
+  aiSummariesEnabled Boolean @default(true)
   /**
    * Legacy per-account copies. The live model, key, and prompt are on
    * SystemSettings, edited from Admin. These stay so an older backup still reads.

@@ -376,6 +376,8 @@ test("AI summary settings roundtrip and generate button error path", async () =>
   await expect(section.getByLabel("API key")).toHaveCount(0);
   await expect(section.getByLabel("Summary prompt")).toHaveCount(0);
   const toggle = section.getByTestId("ai-enabled-toggle");
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "true");
