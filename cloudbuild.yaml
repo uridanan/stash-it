@@ -44,39 +44,34 @@ steps:
       - push
       - $_AR_HOSTNAME/$PROJECT_ID/${_AR_REPOSITORY}/${_SERVICE_NAME}:latest
 
-  # 4. Deploy to Cloud Run.
-  #    - --allow-unauthenticated: the app does its own auth (Google Sign-In).
-  #    - --no-cpu-throttling: fill-in jobs keep running after the request
-  #      that started them returns. With request-based CPU they freeze the
-  #      moment the browser disconnects.
-  #    - --max-instances=1: the keepalive ping has to reach the instance
-  #      holding the runner. One instance is enough for this app, and an
-  #      idle one still scales to zero once the job is done.
-  #    - --memory: always-on CPU requires at least 512Mi.
+  # 4. Deploy to a Cloud Run instance (always on, one container).
+  #    - --public: the app does its own auth (Google Sign-In).
+  #    - 1 vCPU / 1 GiB: shared CPU with a burst budget, enough for this app.
   #    - --set-secrets: mounts Secret Manager values as env vars.
   #    - --set-env-vars: non-secret config only.
   #    - --port: explicitly set container target port.
-  #    - --add-cloudsql-instances: connects the service to Cloud SQL unix socket.
+  #    - --set-cloudsql-instances: connects the instance to Cloud SQL unix socket.
   - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
+      - beta
       - run
+      - instances
       - deploy
-      - ${_SERVICE_NAME}
+      - ${_INSTANCE_NAME}
       - --image
       - $_AR_HOSTNAME/$PROJECT_ID/${_AR_REPOSITORY}/${_SERVICE_NAME}:$COMMIT_SHA
       - --region
       - ${_REGION}
       - --port
       - ${_PORT}
-      - --allow-unauthenticated
-      - --no-cpu-throttling
-      - --max-instances
+      - --public
+      - --cpu
       - "1"
       - --memory
-      - 512Mi
-      - --add-cloudsql-instances
+      - 1Gi
+      - --set-cloudsql-instances
       - $PROJECT_ID:${_REGION}:${_CLOUDSQL_INSTANCE}
       - --set-secrets
       - DATABASE_URL=stash-database-url:latest,AUTH_SECRET=stash-auth-secret:latest,AUTH_GOOGLE_ID=stash-google-id:latest,AUTH_GOOGLE_SECRET=stash-google-secret:latest
@@ -87,10 +82,11 @@ steps:
 substitutions:
   _AR_HOSTNAME: me-west1-docker.pkg.dev # Artifact Registry hostname
   _AR_REPOSITORY: stash-it                  # Artifact Registry repository name
-  _SERVICE_NAME: stash-it                   # Cloud Run service (and image) name
+  _SERVICE_NAME: stash-it                   # Image name
+  _INSTANCE_NAME: stash                    # Cloud Run instance name
   _REGION: me-west1                         # Cloud Run region
-  _AUTH_URL: https://stash-it.me-west1.run.app      # public URL of the deployed service
-  _CLOUDSQL_INSTANCE: stash-db              # Cloud SQL instance name
+  _AUTH_URL: https://stash-1019173152789.me-west1.run.app
+  _CLOUDSQL_INSTANCE: stash-db-instance     # Cloud SQL instance name
   _PORT: "8080"                             # Container listening port
 
 # Images recorded in the build results (also ensures they are pushed).
