@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { SaveButton } from "@/components/save-button";
+
 /**
  * Where Send to Kindle delivers, and who it arrives from.
  *
@@ -116,14 +118,7 @@ export function KindleSettings() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={saving}
-          data-testid="kindle-save"
-          className="min-h-12 rounded-lg bg-violet-600 px-4 py-3 text-base font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+        <SaveButton type="submit" saving={saving} testId="kindle-save" />
         {saved && (
           <span data-testid="kindle-saved" className="text-sm text-slate-500">
             Saved

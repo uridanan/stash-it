@@ -71,7 +71,7 @@ const BLURBS: Record<JobType, string> = {
 };
 
 const buttonClass =
-  "rounded-lg border border-violet-300 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-50";
+  "rounded-lg border border-violet-300 bg-violet-50 px-3 py-1 text-sm font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:opacity-50";
 
 const DISMISS_KEY = "stash:job-report-dismissed";
 
@@ -208,21 +208,21 @@ function JobReport({ job, onDismiss }: { job: Job; onDismiss: () => void }) {
             type="button"
             onClick={onDismiss}
             data-testid="job-report-dismiss"
-            className="ml-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100"
+            className="ml-1 rounded-md px-2 py-1 text-sm text-slate-500 transition-colors hover:bg-slate-100"
           >
             Dismiss
           </button>
         </div>
       </div>
       {job.error ? (
-        <p className="mt-1 text-xs text-red-600">{job.error}</p>
+        <p className="mt-1 text-sm text-red-600">{job.error}</p>
       ) : null}
       <p data-testid="job-report-succeeded" className="mt-2 text-sm text-slate-700">
         {articlesCompleted(job.done)}
       </p>
       {failures.length > 0 ? (
         <>
-          <p className="mt-2 text-xs font-medium text-slate-600">
+          <p className="mt-2 text-sm font-medium text-slate-600">
             {failures.length.toLocaleString()}{" "}
             {failures.length === 1 ? "failure" : "failures"}
           </p>
@@ -231,7 +231,7 @@ function JobReport({ job, onDismiss }: { job: Job; onDismiss: () => void }) {
               <li
                 key={`${failure.articleId}-${index}`}
                 data-testid="job-report-failure"
-                className="text-xs"
+                className="text-sm"
               >
                 <a
                   href={`/article/${failure.articleId}`}
@@ -247,7 +247,7 @@ function JobReport({ job, onDismiss }: { job: Job; onDismiss: () => void }) {
           </ul>
         </>
       ) : (
-        <p className="mt-1 text-xs text-slate-500">No failures.</p>
+        <p className="mt-1 text-sm text-slate-500">No failures.</p>
       )}
     </div>
   );
@@ -363,7 +363,7 @@ export function JobProgress() {
               onClick={() => void cancel(active.id)}
               disabled={busy || active.cancelRequested}
               data-testid="job-cancel"
-              className="rounded-md px-2 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-md px-2 py-1 text-sm text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
             >
               {active.cancelRequested ? "Stopping…" : "Stop"}
             </button>
@@ -374,14 +374,14 @@ export function JobProgress() {
               style={{ width: `${percent}%` }}
             />
           </div>
-          <p data-testid="job-counts" className="mt-1 text-xs text-slate-600">
+          <p data-testid="job-counts" className="mt-1 text-sm text-slate-600">
             {active.done.toLocaleString()} completed
             {active.failed > 0
               ? ` · ${active.failed.toLocaleString()} failed`
               : ""}
             {` · ${active.total.toLocaleString()} in this run`}
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-sm text-slate-500">
             Keeps going if you leave this page.
           </p>
         </div>
@@ -409,7 +409,7 @@ export function JobProgress() {
                 {LABELS[type]}
               </span>
               <span
-                className="text-xs tabular-nums text-slate-600"
+                className="text-sm tabular-nums text-slate-600"
                 data-testid={`job-progress-${type}`}
               >
                 {progress.done.toLocaleString()} done · {progress.left.toLocaleString()} left
@@ -422,18 +422,18 @@ export function JobProgress() {
               />
             </div>
             {progress.aside > 0 ? (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-sm text-slate-500">
                 {type === "FETCH_CONTENT"
                   ? `${progress.aside.toLocaleString()} unreachable, and not tried again`
                   : `${progress.aside.toLocaleString()} still need text before this can run`}
               </p>
             ) : null}
-            <p className="mt-1 text-xs text-slate-500">{BLURBS[type]}</p>
+            <p className="mt-1 text-sm text-slate-500">{BLURBS[type]}</p>
 
             {gated && confirming && type === "SUMMARIZE" ? (
               <div
                 data-testid="cost-warning"
-                className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
               >
                 <p className="font-medium">
                   This will summarise {estimate!.articles} articles.
@@ -458,7 +458,7 @@ export function JobProgress() {
                   <button
                     type="button"
                     onClick={() => setConfirming(false)}
-                    className="rounded-lg px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                    className="rounded-lg px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
                   >
                     Cancel
                   </button>
@@ -484,7 +484,7 @@ export function JobProgress() {
                     onClick={() => void start(type, true)}
                     title="Re-fetch every article, keeping the saved copy if a page is gone"
                     data-testid="job-start-refresh"
-                    className="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                    className="rounded-lg border border-slate-200 px-3 py-1 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
                   >
                     Re-fetch everything
                   </button>

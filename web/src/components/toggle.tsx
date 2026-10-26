@@ -16,19 +16,22 @@ export function Toggle({
   onChange,
   label,
   description,
+  descriptionInline = false,
   disabled = false,
   testId,
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
   label: string;
-  /** Optional second line: what the setting does, or its one caveat. */
+  /** Optional note: what the setting does, or its one caveat. */
   description?: React.ReactNode;
+  /** Sit the note on the same line as the label. */
+  descriptionInline?: boolean;
   disabled?: boolean;
   testId?: string;
 }) {
   return (
-    <div className="flex items-start gap-2">
+    <div className={`flex gap-2 ${descriptionInline ? "flex-wrap items-center" : "items-start"}`}>
       <button
         type="button"
         role="switch"
@@ -48,7 +51,7 @@ export function Toggle({
           }`}
         />
       </button>
-      <div className="min-w-0">
+      <div className={descriptionInline ? "flex min-w-0 flex-wrap items-baseline gap-x-2" : "min-w-0"}>
         <button
           type="button"
           disabled={disabled}
@@ -61,7 +64,10 @@ export function Toggle({
         >
           {label}
         </button>
-        {description ? (
+        {description && descriptionInline ? (
+          <span className="text-sm text-slate-500">{description}</span>
+        ) : null}
+        {description && !descriptionInline ? (
           <p className="mt-0.5 text-sm text-slate-500">{description}</p>
         ) : null}
       </div>

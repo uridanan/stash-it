@@ -11,6 +11,7 @@ import {
   type SummaryOption,
   type TagsOption,
 } from "@/components/import-option";
+import { SaveButton } from "@/components/save-button";
 import { TopicList } from "@/components/topic-list";
 
 interface AdminSettings {
@@ -183,10 +184,9 @@ export function AdminAi() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={saving}
-          data-testid="admin-ai-save"
+        <SaveButton
+          saving={saving}
+          testId="admin-ai-save"
           onClick={() => {
             const body: Record<string, unknown> = { aiModel: model, aiPrompt: prompt };
             if (apiKey.trim()) body.apiKey = apiKey.trim();
@@ -202,10 +202,7 @@ export function AdminAi() {
               setApiKey("");
             });
           }}
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+        />
         <Status status={status} />
       </div>
     </div>
@@ -226,15 +223,11 @@ export function AdminTags() {
     <div className="mt-4 space-y-5" data-testid="admin-tags">
       <TopicList topics={topics} onChange={setTopics} placeholder="Add a default tag" />
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={saving}
-          data-testid="admin-tags-save"
+        <SaveButton
+          saving={saving}
+          testId="admin-tags-save"
           onClick={() => void save({ defaultTopics: topics })}
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+        />
         <Status status={status} />
       </div>
     </div>
@@ -287,17 +280,13 @@ export function AdminImport() {
         />
       </div>
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={saving}
-          data-testid="admin-import-save"
+        <SaveButton
+          saving={saving}
+          testId="admin-import-save"
           onClick={() =>
             void save({ importTags: tags, importContent: content, importSummary: summary })
           }
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+        />
         <Status status={status} />
       </div>
     </div>
@@ -445,10 +434,9 @@ export function AdminKindle() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={saving}
-          data-testid="admin-kindle-save"
+        <SaveButton
+          saving={saving}
+          testId="admin-kindle-save"
           onClick={() => {
             const body: Record<string, unknown> = {
               smtpFrom: from,
@@ -470,10 +458,7 @@ export function AdminKindle() {
               setPassword(next.smtpPassword);
             });
           }}
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+        />
         <Status status={status} />
       </div>
     </div>

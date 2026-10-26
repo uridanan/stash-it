@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 
 import { CloseIcon } from "@/components/icons";
 import { JobProgress } from "@/components/job-progress";
+import { SegmentedControl } from "@/components/segmented-control";
 import { Toggle } from "@/components/toggle";
-import type { TagsOption } from "@/components/import-option";
+import { TAG_CHOICES, type TagsOption } from "@/components/import-option";
 
 /** A file the importer accepts. Column order does not matter; names do. */
 const CSV_TEMPLATE = [
@@ -90,7 +91,7 @@ function CsvFormatDialog({
       className="fixed top-1/2 left-1/2 m-0 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-5 text-slate-800 shadow-xl backdrop:bg-slate-900/40"
     >
       <div className="flex items-start justify-between gap-3">
-        <h4 className="text-sm font-medium text-slate-900">Expected formats</h4>
+        <h4 className="text-base font-medium text-slate-900">Expected formats</h4>
         <button
           type="button"
           onClick={onClose}
@@ -100,16 +101,16 @@ function CsvFormatDialog({
           <CloseIcon />
         </button>
       </div>
-      <h5 className="mt-4 text-sm font-medium text-slate-900">Stash-it export</h5>
-      <p className="mt-1 text-xs text-slate-600">
+      <h5 className="mt-4 text-base font-medium text-slate-900">Stash-it export</h5>
+      <p className="mt-1 text-sm text-slate-600">
         Your articles, their status and tags, the saved text and each summary,
         and your settings. A Markdown export is not imported.
       </p>
-      <h5 className="mt-4 text-sm font-medium text-slate-900">CSV</h5>
-      <pre className="mt-3 overflow-x-auto whitespace-pre rounded-lg bg-slate-50 p-3 font-mono text-[11px] leading-relaxed text-slate-700">
+      <h5 className="mt-4 text-base font-medium text-slate-900">CSV</h5>
+      <pre className="mt-3 overflow-x-auto whitespace-pre rounded-lg bg-slate-50 p-3 font-mono text-sm leading-relaxed text-slate-700">
         {CSV_TEMPLATE.trim()}
       </pre>
-      <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-slate-600">
+      <ul className="mt-3 list-disc space-y-1 pl-4 text-sm text-slate-600">
         {CSV_FIELDS.map((field) => (
           <li key={field.name}>
             <span className="font-medium text-slate-800">{field.name}</span>
@@ -143,7 +144,6 @@ export function DataTransfer() {
 
   const [tags, setTags] = useState<TagsOption | null>(null);
   const [systemTags, setSystemTags] = useState<TagsOption>("assign");
-  const [override, setOverride] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
 
   useEffect(() => {
@@ -155,7 +155,6 @@ export function DataTransfer() {
         const system = data.systemImportTags === "import" ? "import" : "assign";
         const chosen = data.importTags === "import" ? "import" : "assign";
         setSystemTags(system);
-        setOverride(data.importTagsOverride === "assign" || data.importTagsOverride === "import");
         setTags(chosen);
       })
       .catch(() => {
@@ -166,15 +165,17 @@ export function DataTransfer() {
     };
   }, []);
 
-  async function chooseTags(value: TagsOption | null) {
-    const next = value ?? systemTags;
-    setTags(next);
-    setOverride(value !== null);
+  async function chooseTags(value: TagsOption) {
+    setTags(value);
     try {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ importTagsOverride: value }),
+        // Matching the system value clears the override, so a later change
+        // to the system default is what shows up next time.
+        body: JSON.stringify({
+          importTagsOverride: value === systemTags ? null : value,
+        }),
       });
       if (!res.ok) setError("Could not save that choice");
     } catch {
@@ -222,7 +223,7 @@ export function DataTransfer() {
   return (
     <div className="mt-4 space-y-8">
       <section>
-        <h3 className="text-sm font-medium text-slate-900">Export</h3>
+        <h3 className="text-base font-medium text-slate-900">Export</h3>
         <div className="mt-3 space-y-3">
           <Toggle
             checked={exportLinks}
@@ -241,6 +242,7 @@ export function DataTransfer() {
             onChange={setExportText}
             label="Article text"
             description="One HTML per article, including its summary."
+            descriptionInline
             testId="export-text"
           />
           <Toggle
@@ -272,7 +274,7 @@ export function DataTransfer() {
       </section>
 
       <section>
-        <h3 className="text-sm font-medium text-slate-900">
+        <h3 className="text-base font-medium text-slate-900">
           Export as Markdown
         </h3>
         <a
@@ -283,7 +285,7 @@ export function DataTransfer() {
         >
           ↓ Markdown files
         </a>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           One <code className="font-mono">.md</code> per article with YAML
           frontmatter and a summary section, plus an index — unpack it straight
           into a notes vault. Read-only by design: it is not a restore format,
@@ -293,48 +295,32 @@ export function DataTransfer() {
       </section>
 
       <section>
-        <h3 className="text-sm font-medium text-slate-900">Import</h3>
+        <h3 className="text-base font-medium text-slate-900">Import</h3>
         <div className="mt-2">
           {tags ? (
             <>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <label
-                  htmlFor="import-tags"
-                  className="text-sm font-medium text-slate-900"
-                >
-                  Collections
-                </label>
-                <select
-                  id="import-tags"
-                  value={override ? tags : ""}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    void chooseTags(value === "import" || value === "assign" ? value : null);
-                  }}
-                  data-testid="option-tags"
-                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 outline-none transition-colors focus:border-violet-600"
-                >
-                  <option value="">
-                    Use the system default (
-                    {systemTags === "import" ? "Import from file" : "Assign automatically"}
-                    )
-                  </option>
-                  <option value="assign">Assign automatically</option>
-                  <option value="import">Import from file</option>
-                </select>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className="text-sm font-medium text-slate-900">Collections</span>
+                <SegmentedControl
+                  label="Collections"
+                  value={tags}
+                  onChange={(value) => void chooseTags(value)}
+                  choices={TAG_CHOICES}
+                  testId="option-tags"
+                />
               </div>
-              <p className="mt-1 max-w-lg text-xs text-slate-500">
+              <p className="mt-1 max-w-lg text-sm text-slate-500">
                 Assign re-derives them from each article. Choose Import when
                 restoring your own backup, or hand-made collections are lost.
-                This overrides the system default for your imports.
+                The system default is selected until you choose the other one.
               </p>
             </>
           ) : (
-            <p className="text-xs text-slate-400">Loading…</p>
+            <p className="text-sm text-slate-400">Loading…</p>
           )}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-1">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => importInput.current?.click()}
@@ -349,14 +335,14 @@ export function DataTransfer() {
             onClick={() => setFormatOpen(true)}
             aria-label="Expected import formats"
             data-testid="instapaper-format-info"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-800 transition-colors hover:bg-slate-50"
           >
             <svg
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="1.8"
-              className="h-4 w-4"
+              className="h-6 w-6"
               aria-hidden
             >
               <circle cx="12" cy="12" r="9" />
@@ -379,7 +365,7 @@ export function DataTransfer() {
         </div>
         <div
           data-testid="import-behavior"
-          className="mt-3 space-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600"
+          className="mt-3 space-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600"
         >
           <p>Import will not create duplicates of existing articles.</p>
           <p>Stash-it import leaves existing articles untouched.</p>
@@ -399,7 +385,7 @@ export function DataTransfer() {
           className="rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm text-slate-700"
         >
           <p className="font-medium text-violet-800">Import finished</p>
-          <ul className="mt-1 space-y-0.5 text-xs">
+          <ul className="mt-1 space-y-0.5 text-sm">
             <li>{summary.articlesCreated} article(s) added</li>
             {(summary.articlesUpdated ?? 0) > 0 && (
               <li>
@@ -420,10 +406,10 @@ export function DataTransfer() {
           </ul>
           {summary.problems.length > 0 && (
             <details className="mt-2">
-              <summary className="cursor-pointer text-xs text-slate-500">
+              <summary className="cursor-pointer text-sm text-slate-500">
                 {summary.problems.length} note(s)
               </summary>
-              <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-slate-500">
+              <ul className="mt-1 space-y-0.5 font-mono text-sm text-slate-500">
                 {summary.problems.map((problem, i) => (
                   <li key={i}>{problem}</li>
                 ))}
@@ -434,8 +420,8 @@ export function DataTransfer() {
       ) : null}
 
       <section>
-        <h3 className="text-sm font-medium text-slate-900">Filling in</h3>
-        <p className="mt-1 text-xs text-slate-500">
+        <h3 className="text-base font-medium text-slate-900">Filling in</h3>
+        <p className="mt-1 text-sm text-slate-500">
           Three independent passes. Fetching text and classifying topics are the
           cheap ones, so collections fill up without waiting on summaries.
         </p>
